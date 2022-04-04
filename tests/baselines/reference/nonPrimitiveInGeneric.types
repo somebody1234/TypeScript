@@ -41,7 +41,7 @@ function bound<T extends object>(t: T) {
 
     var o: object = t; // ok
 >o : object
->t : T
+>t : object
 }
 
 bound({});
@@ -89,7 +89,7 @@ function bound3<T extends {}>(t: T) {
 
     var o: object = t; // ok
 >o : object
->t : T
+>t : {}
 }
 
 interface Proxy<T extends object> {}
