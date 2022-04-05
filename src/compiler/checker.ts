@@ -25345,7 +25345,7 @@ namespace ts {
                     someType(type, isGenericTypeWithUnionConstraint) ||
                     ((type.flags & TypeFlags.Instantiable) && contextualType && isEmptyObjectType(contextualType))
                 );
-            return substituteConstraints ? mapType(type, t => t.flags & TypeFlags.Instantiable ? getBaseConstraintOrType(t) : t) : type;
+            return substituteConstraints ? mapType(type, t => t.flags & TypeFlags.Instantiable ? getBaseConstraintOfType(t) || unknownType : t) : type;
         }
 
         function isExportOrExportExpression(location: Node) {
