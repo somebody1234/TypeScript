@@ -2,7 +2,7 @@
 declare function keysOfEmptyObject(o: {}): string[];
 declare function keysOfNonPrimitive(o: object): string[];
 
-namespace explicitConstraints {
+namespace implicitConstraints {
     export function keyLengthsEqualUsingEmptyObjectFn<T>(a: T, b: T): [T, T] | undefined {
         if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
             return undefined;
@@ -23,7 +23,7 @@ namespace explicitConstraints {
         if (Array.isArray(a) || Array.isArray(b)) {
             return undefined;
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
             return [a, b];
         }
         return undefined;
@@ -32,7 +32,7 @@ namespace explicitConstraints {
 
 // Explicit Constraints of 'unknown'
 namespace explicitConstraintsOfUnknown {
-    export function keyLengthsEqualUsingEmptyObjectFn<T>(a: T, b: T): [T, T] | undefined {
+    export function keyLengthsEqualUsingEmptyObjectFn<T extends unknown>(a: T, b: T): [T, T] | undefined {
         if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
             return undefined;
         }
@@ -45,14 +45,14 @@ namespace explicitConstraintsOfUnknown {
         return undefined;
     }
     
-    export function keyLengthsEqualUsingNonPrimitiveFn<T>(a: T, b: T): [T, T] | undefined {
+    export function keyLengthsEqualUsingNonPrimitiveFn<T extends unknown>(a: T, b: T): [T, T] | undefined {
         if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
             return undefined;
         }
         if (Array.isArray(a) || Array.isArray(b)) {
             return undefined;
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
             return [a, b];
         }
         return undefined;
@@ -61,8 +61,8 @@ namespace explicitConstraintsOfUnknown {
 
 
 //// [contextualNarrowingFromUnknownToObjects.js]
-var explicitConstraints;
-(function (explicitConstraints) {
+var implicitConstraints;
+(function (implicitConstraints) {
     function keyLengthsEqualUsingEmptyObjectFn(a, b) {
         if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
             return undefined;
@@ -75,7 +75,7 @@ var explicitConstraints;
         }
         return undefined;
     }
-    explicitConstraints.keyLengthsEqualUsingEmptyObjectFn = keyLengthsEqualUsingEmptyObjectFn;
+    implicitConstraints.keyLengthsEqualUsingEmptyObjectFn = keyLengthsEqualUsingEmptyObjectFn;
     function keyLengthsEqualUsingNonPrimitiveFn(a, b) {
         if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
             return undefined;
@@ -83,13 +83,13 @@ var explicitConstraints;
         if (Array.isArray(a) || Array.isArray(b)) {
             return undefined;
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
             return [a, b];
         }
         return undefined;
     }
-    explicitConstraints.keyLengthsEqualUsingNonPrimitiveFn = keyLengthsEqualUsingNonPrimitiveFn;
-})(explicitConstraints || (explicitConstraints = {}));
+    implicitConstraints.keyLengthsEqualUsingNonPrimitiveFn = keyLengthsEqualUsingNonPrimitiveFn;
+})(implicitConstraints || (implicitConstraints = {}));
 // Explicit Constraints of 'unknown'
 var explicitConstraintsOfUnknown;
 (function (explicitConstraintsOfUnknown) {
@@ -113,7 +113,7 @@ var explicitConstraintsOfUnknown;
         if (Array.isArray(a) || Array.isArray(b)) {
             return undefined;
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
             return [a, b];
         }
         return undefined;

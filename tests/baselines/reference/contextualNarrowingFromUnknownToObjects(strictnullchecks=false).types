@@ -7,8 +7,8 @@ declare function keysOfNonPrimitive(o: object): string[];
 >keysOfNonPrimitive : (o: object) => string[]
 >o : object
 
-namespace explicitConstraints {
->explicitConstraints : typeof explicitConstraints
+namespace implicitConstraints {
+>implicitConstraints : typeof implicitConstraints
 
     export function keyLengthsEqualUsingEmptyObjectFn<T>(a: T, b: T): [T, T] | undefined {
 >keyLengthsEqualUsingEmptyObjectFn : <T>(a: T, b: T) => [T, T] | undefined
@@ -114,16 +114,16 @@ namespace explicitConstraints {
             return undefined;
 >undefined : undefined
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
->keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length : boolean
->keysOfEmptyObject(a).length : number
->keysOfEmptyObject(a) : string[]
->keysOfEmptyObject : (o: {}) => string[]
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
+>keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length : boolean
+>keysOfNonPrimitive(a).length : number
+>keysOfNonPrimitive(a) : string[]
+>keysOfNonPrimitive : (o: object) => string[]
 >a : T
 >length : number
->keysOfEmptyObject(b).length : number
->keysOfEmptyObject(b) : string[]
->keysOfEmptyObject : (o: {}) => string[]
+>keysOfNonPrimitive(b).length : number
+>keysOfNonPrimitive(b) : string[]
+>keysOfNonPrimitive : (o: object) => string[]
 >b : T
 >length : number
 
@@ -141,8 +141,8 @@ namespace explicitConstraints {
 namespace explicitConstraintsOfUnknown {
 >explicitConstraintsOfUnknown : typeof explicitConstraintsOfUnknown
 
-    export function keyLengthsEqualUsingEmptyObjectFn<T>(a: T, b: T): [T, T] | undefined {
->keyLengthsEqualUsingEmptyObjectFn : <T>(a: T, b: T) => [T, T] | undefined
+    export function keyLengthsEqualUsingEmptyObjectFn<T extends unknown>(a: T, b: T): [T, T] | undefined {
+>keyLengthsEqualUsingEmptyObjectFn : <T extends unknown>(a: T, b: T) => [T, T] | undefined
 >a : T
 >b : T
 
@@ -187,12 +187,12 @@ namespace explicitConstraintsOfUnknown {
 >keysOfEmptyObject(a).length : number
 >keysOfEmptyObject(a) : string[]
 >keysOfEmptyObject : (o: {}) => string[]
->a : T
+>a : object
 >length : number
 >keysOfEmptyObject(b).length : number
 >keysOfEmptyObject(b) : string[]
 >keysOfEmptyObject : (o: {}) => string[]
->b : T
+>b : object
 >length : number
 
             return [a, b];
@@ -204,8 +204,8 @@ namespace explicitConstraintsOfUnknown {
 >undefined : undefined
     }
     
-    export function keyLengthsEqualUsingNonPrimitiveFn<T>(a: T, b: T): [T, T] | undefined {
->keyLengthsEqualUsingNonPrimitiveFn : <T>(a: T, b: T) => [T, T] | undefined
+    export function keyLengthsEqualUsingNonPrimitiveFn<T extends unknown>(a: T, b: T): [T, T] | undefined {
+>keyLengthsEqualUsingNonPrimitiveFn : <T extends unknown>(a: T, b: T) => [T, T] | undefined
 >a : T
 >b : T
 
@@ -245,17 +245,17 @@ namespace explicitConstraintsOfUnknown {
             return undefined;
 >undefined : undefined
         }
-        if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
->keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length : boolean
->keysOfEmptyObject(a).length : number
->keysOfEmptyObject(a) : string[]
->keysOfEmptyObject : (o: {}) => string[]
->a : T
+        if (keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length) {
+>keysOfNonPrimitive(a).length !== keysOfNonPrimitive(b).length : boolean
+>keysOfNonPrimitive(a).length : number
+>keysOfNonPrimitive(a) : string[]
+>keysOfNonPrimitive : (o: object) => string[]
+>a : object
 >length : number
->keysOfEmptyObject(b).length : number
->keysOfEmptyObject(b) : string[]
->keysOfEmptyObject : (o: {}) => string[]
->b : T
+>keysOfNonPrimitive(b).length : number
+>keysOfNonPrimitive(b) : string[]
+>keysOfNonPrimitive : (o: object) => string[]
+>b : object
 >length : number
 
             return [a, b];

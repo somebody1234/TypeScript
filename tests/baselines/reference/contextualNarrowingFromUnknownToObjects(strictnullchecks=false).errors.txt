@@ -1,10 +1,8 @@
-tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts(12,31): error TS2345: Argument of type 'T' is not assignable to parameter of type '{}'.
-tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts(12,63): error TS2345: Argument of type 'T' is not assignable to parameter of type '{}'.
 tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts(25,32): error TS2345: Argument of type 'T' is not assignable to parameter of type 'object'.
 tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts(25,65): error TS2345: Argument of type 'T' is not assignable to parameter of type 'object'.
 
 
-==== tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts (4 errors) ====
+==== tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts (2 errors) ====
     declare function keysOfEmptyObject(o: {}): string[];
     declare function keysOfNonPrimitive(o: object): string[];
     
@@ -17,12 +15,6 @@ tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts(25,65): error TS
                 return undefined;
             }
             if (keysOfEmptyObject(a).length !== keysOfEmptyObject(b).length) {
-                                  ~
-!!! error TS2345: Argument of type 'T' is not assignable to parameter of type '{}'.
-!!! related TS2208 tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts:5:55: This type parameter probably needs an `extends object` constraint.
-                                                                  ~
-!!! error TS2345: Argument of type 'T' is not assignable to parameter of type '{}'.
-!!! related TS2208 tests/cases/compiler/contextualNarrowingFromUnknownToObjects.ts:5:55: This type parameter probably needs an `extends object` constraint.
                 return [a, b];
             }
             return undefined;
