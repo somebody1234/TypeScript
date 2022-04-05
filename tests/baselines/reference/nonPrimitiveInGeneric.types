@@ -5,7 +5,7 @@ function generic<T>(t: T) {
 
     var o: object = t; // expect error
 >o : object
->t : T
+>t : unknown
 }
 var a = {};
 >a : {}
