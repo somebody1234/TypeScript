@@ -2157,10 +2157,7 @@ getModifiedTime:: {
  "/src/third/thirdjs/output/third-output.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.d.ts": 1,
- "/src/third/thirdjs/output/third-output.d.ts.map": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -2458,8 +2455,6 @@ declare function f(): string;
   "size": 445
 }
 
-//// [/src/third/thirdjs/output/third-output.d.ts] file changed its modified time
-//// [/src/third/thirdjs/output/third-output.d.ts.map] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.js]
 "use strict";
 "myPrologue";
@@ -3261,9 +3256,7 @@ getModifiedTime:: {
  "/src/third/thirdjs/output/third-output.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.d.ts": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -3725,7 +3718,6 @@ declare function f(): string;
   "size": 591
 }
 
-//// [/src/third/thirdjs/output/third-output.d.ts] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.d.ts.map]
 {"version":3,"file":"third-output.d.ts","sourceRoot":"","sources":["../../../first/first_PART1.ts","../../../first/first_part3.ts","../../../second/second_part1.ts","../../../second/second_part2.ts","../../third_part1.ts"],"names":[],"mappings":"AACA,UAAU,QAAQ;IACd,IAAI,EAAE,GAAG,CAAC;CACb;AAED,QAAA,MAAM,CAAC,iBAAiB,CAAC;AAEzB,UAAU,iBAAiB;IACvB,IAAI,EAAE,GAAG,CAAC;CACb;ACTD,iBAAS,CAAC,WAET;ACDD,kBAAU,CAAC,CAAC;CAEX;AAED,kBAAU,CAAC,CAAC;CAMX;ACVD,cAAM,CAAC;IACH,WAAW;CAGd;ACLD,QAAA,IAAI,CAAC,GAAU,CAAC"}
 

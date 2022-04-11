@@ -3968,10 +3968,7 @@ getModifiedTime:: {
  "/src/third/thirdjs/output/third-output.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.d.ts": 1,
- "/src/third/thirdjs/output/third-output.d.ts.map": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -4620,8 +4617,6 @@ declare const firstfirst_part3_ar: number[];
   "size": 553
 }
 
-//// [/src/third/thirdjs/output/third-output.d.ts] file changed its modified time
-//// [/src/third/thirdjs/output/third-output.d.ts.map] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.js]
 var __rest = (this && this.__rest) || function (s, e) {
     var t = {};
@@ -6206,9 +6201,7 @@ getModifiedTime:: {
  "/src/third/thirdjs/output/third-output.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.d.ts": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -6927,7 +6920,6 @@ declare const firstfirst_part3_ar: number[];
   "size": 463
 }
 
-//// [/src/third/thirdjs/output/third-output.d.ts] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.d.ts.map]
 {"version":3,"file":"third-output.d.ts","sourceRoot":"","sources":["../../../first/first_PART1.ts","../../../first/first_part3.ts","../../../second/second_part1.ts","../../../second/second_part2.ts","../../third_part1.ts"],"names":[],"mappings":"AAAA,UAAU,QAAQ;IACd,IAAI,EAAE,GAAG,CAAC;CACb;AAED,QAAA,MAAM,CAAC,iBAAiB,CAAC;AAEzB,UAAU,iBAAiB;IACvB,IAAI,EAAE,GAAG,CAAC;CACb;AAGD,iBAAS,uBAAuB,SAAM;ACXtC,iBAAS,CAAC,WAET;AACD,iBAAS,sBAAsB,CAAC,GAAG,GAAG,MAAM,EAAE,QAAK;AACnD,QAAA,MAAM,mBAAmB,UAAW,CAAC;ACJrC,kBAAU,CAAC,CAAC;CAEX;AAED,kBAAU,CAAC,CAAC;CAMX;AACD,iBAAS,yBAAyB,SAEjC;ACbD,cAAM,CAAC;IACH,WAAW;CAGd;AAED,iBAAS,wBAAwB,CAAC,GAAG,GAAG,MAAM,EAAE,QAAK;AACrD,QAAA,MAAM,qBAAqB,UAAW,CAAC;ACPvC,QAAA,IAAI,CAAC,GAAU,CAAC;AAEhB,iBAAS,uBAAuB,SAE/B;AACD,iBAAS,sBAAsB,CAAC,GAAG,GAAG,MAAM,EAAE,QAAK;AACnD,QAAA,MAAM,mBAAmB,UAAW,CAAC"}
 

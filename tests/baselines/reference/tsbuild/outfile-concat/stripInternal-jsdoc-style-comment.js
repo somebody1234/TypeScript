@@ -5468,10 +5468,7 @@ getModifiedTime:: {
  "/src/third/thirdjs/output/third-output.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.d.ts": 1,
- "/src/third/thirdjs/output/third-output.d.ts.map": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -5746,8 +5743,6 @@ declare function f(): string;
   "size": 290
 }
 
-//// [/src/third/thirdjs/output/third-output.d.ts] file changed its modified time
-//// [/src/third/thirdjs/output/third-output.d.ts.map] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.js]
 var s = "Hello, world";
 console.log(s);
@@ -7830,10 +7825,7 @@ getModifiedTime:: {
  "/src/third/tsconfig.json": 1
 }
 
-setModifiedTime:: {
- "/src/third/thirdjs/output/third-output.js": 1,
- "/src/third/thirdjs/output/third-output.js.map": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/first/bin/first-output.js": 1,
@@ -8544,8 +8536,6 @@ sourceFile:../../third_part1.ts
 ---
 >>>//# sourceMappingURL=third-output.d.ts.map
 
-//// [/src/third/thirdjs/output/third-output.js] file changed its modified time
-//// [/src/third/thirdjs/output/third-output.js.map] file changed its modified time
 //// [/src/third/thirdjs/output/third-output.tsbuildinfo]
 {"bundle":{"commonSourceDirectory":"../..","sourceFiles":["../../third_part1.ts"],"js":{"sections":[{"pos":0,"end":127,"kind":"prepend","data":"../../../first/bin/first-output.js","texts":[{"pos":0,"end":127,"kind":"text"}]},{"pos":127,"end":3180,"kind":"prepend","data":"../../../2/second-output.js","texts":[{"pos":127,"end":3180,"kind":"text"}]},{"pos":3180,"end":3216,"kind":"text"}]},"dts":{"sections":[{"pos":0,"end":157,"kind":"prepend","data":"../../../first/bin/first-output.d.ts","texts":[{"pos":0,"end":157,"kind":"text"}]},{"pos":157,"end":317,"kind":"prepend","data":"../../../2/second-output.d.ts","texts":[{"pos":157,"end":317,"kind":"text"}]},{"pos":317,"end":336,"kind":"text"}]}},"version":"FakeTSVersion"}
 

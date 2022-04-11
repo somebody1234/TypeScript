@@ -1300,10 +1300,7 @@ getModifiedTime:: {
  "/src/app/module.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/app/module.d.ts": 1,
- "/src/app/module.d.ts.map": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/lib/module.js": 1,
@@ -1319,8 +1316,6 @@ directoryExists:: {
 }
 
 
-//// [/src/app/module.d.ts] file changed its modified time
-//// [/src/app/module.d.ts.map] file changed its modified time
 //// [/src/app/module.js]
 "use strict";
 "myPrologue";
@@ -2221,9 +2216,7 @@ getModifiedTime:: {
  "/src/app/module.d.ts": 1
 }
 
-setModifiedTime:: {
- "/src/app/module.d.ts": 1
-}
+setModifiedTime:: {}
 
 fileExists:: {
  "/src/lib/module.js": 1,
@@ -2239,7 +2232,6 @@ directoryExists:: {
 }
 
 
-//// [/src/app/module.d.ts] file changed its modified time
 //// [/src/app/module.d.ts.map]
 {"version":3,"file":"module.d.ts","sourceRoot":"","sources":["../lib/file0.ts","../lib/file1.ts","../lib/file2.ts","../lib/global.ts","file3.ts","file4.ts"],"names":[],"mappings":"AACA,QAAA,MAAM,MAAM,KAAK,CAAC;;ICAlB,MAAM,CAAC,MAAM,CAAC,KAAK,CAAC;;;ICApB,MAAM,CAAC,MAAM,CAAC,KAAK,CAAC;;ACApB,QAAA,MAAM,WAAW,KAAK,CAAC;;ICAvB,MAAM,CAAC,MAAM,CAAC,KAAK,CAAC;;ACApB,QAAA,MAAM,KAAK,KAAK,CAAC"}
 
