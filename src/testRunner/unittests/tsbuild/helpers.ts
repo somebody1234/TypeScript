@@ -248,6 +248,7 @@ interface Symbol {
         semanticDiagnosticsPerFile?: readonly ReadableProgramBuildInfoDiagnostic[];
         affectedFilesPendingEmit?: readonly ReadableProgramBuilderInfoFilePendingEmit[];
         changeFileSet?: readonly string[];
+        dtsChangeTime?: number;
     }
     type ReadableBuildInfo = Omit<BuildInfo, "program"> & { program: ReadableProgramBuildInfo | undefined; size: number; };
     function generateBuildInfoProgramBaseline(sys: System, originalWriteFile: System["writeFile"], buildInfoPath: string, buildInfo: BuildInfo) {
@@ -273,6 +274,7 @@ interface Symbol {
                         Debug.assertNever(emitKind)
             ]),
             changeFileSet: buildInfo.program.changeFileSet?.map(toFileName),
+            dtsChangeTime: buildInfo.program.dtsChangeTime,
         };
         const version = buildInfo.version === ts.version ? fakes.version : buildInfo.version;
         const result: ReadableBuildInfo = {

@@ -6782,6 +6782,7 @@ namespace ts {
         // For testing:
         /*@internal*/ disableUseFileVersionAsSignature?: boolean;
         /*@internal*/ storeFilesChangingSignatureDuringEmit?: boolean;
+        /*@internal*/ now?(): Date;
     }
 
     /** true if --out otherwise source file name */

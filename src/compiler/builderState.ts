@@ -29,7 +29,7 @@ namespace ts {
         readonly exportedModulesMap?: BuilderState.ReadonlyManyToManyPathMap | undefined;
     }
 
-    export interface BuilderState {
+    export interface BuilderState extends ReusableBuilderState {
         /**
          * Information of the file eg. its version, signature etc
          */
