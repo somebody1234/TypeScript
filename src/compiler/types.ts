@@ -90,6 +90,12 @@ namespace ts {
         BacktickToken,
         /** Only the JSDoc scanner produces HashToken. The normal scanner produces PrivateIdentifier. */
         HashToken,
+        /** Marks the start of a comment type annotation. */
+        SlashAsteriskColonToken,
+        /** Marks the start of a comment type include. */
+        SlashAsteriskColonColonToken,
+        /** Marks the end of a comment type annotation. */
+        AsteriskSlashToken,
         // Assignments
         EqualsToken,
         PlusEqualsToken,
@@ -786,6 +792,8 @@ namespace ts {
         JsonFile                                      = 1 << 25, // If node was parsed in a Json
         /* @internal */ TypeCached                    = 1 << 26, // If a type was cached for node at any point
         /* @internal */ Deprecated                    = 1 << 27, // If has '@deprecated' JSDoc tag
+
+        /* @internal */ InTypeComment                 = 1 << 28, // If node was parsed inside comment-as-type
 
         BlockScoped = Let | Const,
 
@@ -3187,7 +3195,7 @@ namespace ts {
         enabled: boolean;
     }
 
-    export type CommentKind = SyntaxKind.SingleLineCommentTrivia | SyntaxKind.MultiLineCommentTrivia;
+    export type CommentKind = | SyntaxKind.SingleLineCommentTrivia | SyntaxKind.MultiLineCommentTrivia;
 
     export interface CommentRange extends TextRange {
         hasTrailingNewLine?: boolean;

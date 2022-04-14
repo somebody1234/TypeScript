@@ -61,6 +61,8 @@ namespace ts {
         setTextPos(textPos: number): void;
         /* @internal */
         setInJSDocType(inType: boolean): void;
+        /* @internal */
+        setInTypeComment(inTypeComment: boolean): void;
         // Invokes the provided callback then unconditionally restores the scanner to the state it
         // was in immediately prior to invoking the callback.  The result of invoking the callback
         // is returned from this function.
@@ -226,6 +228,9 @@ namespace ts {
         "@": SyntaxKind.AtToken,
         "#": SyntaxKind.HashToken,
         "`": SyntaxKind.BacktickToken,
+        "/*::": SyntaxKind.SlashAsteriskColonColonToken,
+        "/*:": SyntaxKind.SlashAsteriskColonToken,
+        "*/": SyntaxKind.AsteriskSlashToken,
     }));
 
     /*
@@ -559,7 +564,7 @@ namespace ts {
     }
 
     /* @internal */
-    export function skipTrivia(text: string, pos: number, stopAfterLineBreak?: boolean, stopAtComments?: boolean, inJSDoc?: boolean): number {
+    export function skipTrivia(text: string, pos: number, stopAfterLineBreak?: boolean, stopAtComments?: boolean, inJSDoc?: boolean, inTypeComment?: boolean): number {
         if (positionIsSynthesized(pos)) {
             return pos;
         }
@@ -597,12 +602,18 @@ namespace ts {
                             if (isLineBreak(text.charCodeAt(pos))) {
                                 break;
                             }
+                            if (inTypeComment && text.charCodeAt(pos) === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
+                                return pos;
+                            }
                             pos++;
                         }
                         canConsumeStar = false;
                         continue;
                     }
                     if (text.charCodeAt(pos + 1) === CharacterCodes.asterisk) {
+                        if (text.charCodeAt(pos + 2) === CharacterCodes.colon) {
+                            break;
+                        }
                         pos += 2;
                         while (pos < text.length) {
                             if (text.charCodeAt(pos) === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
@@ -793,8 +804,8 @@ namespace ts {
                     if (nextChar === CharacterCodes.slash || nextChar === CharacterCodes.asterisk) {
                         const kind = nextChar === CharacterCodes.slash ? SyntaxKind.SingleLineCommentTrivia : SyntaxKind.MultiLineCommentTrivia;
                         const startPos = pos;
-                        pos += 2;
                         if (nextChar === CharacterCodes.slash) {
+                            pos += 2;
                             while (pos < text.length) {
                                 if (isLineBreak(text.charCodeAt(pos))) {
                                     hasTrailingNewLine = true;
@@ -804,6 +815,11 @@ namespace ts {
                             }
                         }
                         else {
+                            if (text.charCodeAt(pos + 2) === CharacterCodes.colon) {
+                                break scan;
+                            }
+
+                            pos += 2;
                             while (pos < text.length) {
                                 if (text.charCodeAt(pos) === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
                                     pos += 2;
@@ -956,6 +972,7 @@ namespace ts {
 
         let commentDirectives: CommentDirective[] | undefined;
         let inJSDocType = 0;
+        let inTypeComment = false;
 
         setText(text, start, length);
 
@@ -1000,6 +1017,7 @@ namespace ts {
             setOnError,
             setTextPos,
             setInJSDocType,
+            setInTypeComment,
             tryScan,
             lookAhead,
             scanRange,
@@ -1611,6 +1629,7 @@ namespace ts {
             startPos = pos;
             tokenFlags = TokenFlags.None;
             let asteriskSeen = false;
+
             while (true) {
                 tokenPos = pos;
                 if (pos >= end) {
@@ -1728,6 +1747,12 @@ namespace ts {
                             }
                             return pos += 2, token = SyntaxKind.AsteriskAsteriskToken;
                         }
+                        if (text.charCodeAt(pos + 1) === CharacterCodes.slash) {
+                            inTypeComment = false;
+                            // Could technically be `0*/regex/` but we assume that never happens
+                            // Otherwise, we could just only do this if inTypeComment is `true`
+                            return pos += 2, token = SyntaxKind.AsteriskSlashToken;
+                        }
                         pos++;
                         if (inJSDocType && !asteriskSeen && (tokenFlags & TokenFlags.PrecedingLineBreak)) {
                             // decoration at the start of a JSDoc comment line
@@ -1775,6 +1800,10 @@ namespace ts {
                                 if (isLineBreak(text.charCodeAt(pos))) {
                                     break;
                                 }
+                                if (inTypeComment && text.charCodeAt(pos) === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
+                                    inTypeComment = false;
+                                    return pos += 2, token = SyntaxKind.AsteriskSlashToken;
+                                }
                                 pos++;
                             }
 
@@ -1794,6 +1823,19 @@ namespace ts {
                         }
                         // Multi-line comment
                         if (text.charCodeAt(pos + 1) === CharacterCodes.asterisk) {
+                            if (inTypeComment) {
+                                pos++;
+                                return token = SyntaxKind.SlashToken;
+                            }
+
+                            if (text.charCodeAt(pos + 2) === CharacterCodes.colon) {
+                                inTypeComment = true;
+                                if (text.charCodeAt(pos + 3) === CharacterCodes.colon) {
+                                    return pos += 4, token = SyntaxKind.SlashAsteriskColonColonToken;
+                                }
+                                return pos += 3, token = SyntaxKind.SlashAsteriskColonToken;
+                            }
+
                             pos += 2;
                             if (text.charCodeAt(pos) === CharacterCodes.asterisk && text.charCodeAt(pos + 1) !== CharacterCodes.slash) {
                                 tokenFlags |= TokenFlags.PrecedingJSDocComment;
@@ -2493,6 +2535,7 @@ namespace ts {
             const saveToken = token;
             const saveTokenValue = tokenValue;
             const saveTokenFlags = tokenFlags;
+            const saveInTypeComment = inTypeComment;
             const result = callback();
 
             // If our callback returned something 'falsy' or we're just looking ahead,
@@ -2504,6 +2547,7 @@ namespace ts {
                 token = saveToken;
                 tokenValue = saveTokenValue;
                 tokenFlags = saveTokenFlags;
+                inTypeComment = saveInTypeComment;
             }
             return result;
         }
@@ -2516,6 +2560,7 @@ namespace ts {
             const saveToken = token;
             const saveTokenValue = tokenValue;
             const saveTokenFlags = tokenFlags;
+            const saveInTypeComment = inTypeComment;
             const saveErrorExpectations = commentDirectives;
 
             setText(text, start, length);
@@ -2528,6 +2573,7 @@ namespace ts {
             token = saveToken;
             tokenValue = saveTokenValue;
             tokenFlags = saveTokenFlags;
+            inTypeComment = saveInTypeComment;
             commentDirectives = saveErrorExpectations;
 
             return result;
@@ -2575,10 +2621,15 @@ namespace ts {
             token = SyntaxKind.Unknown;
             tokenValue = undefined!;
             tokenFlags = TokenFlags.None;
+            inTypeComment = false;
         }
 
         function setInJSDocType(inType: boolean) {
             inJSDocType += inType ? 1 : -1;
+        }
+
+        function setInTypeComment(inTypeComment_: boolean) {
+            inTypeComment = inTypeComment_;
         }
     }
 

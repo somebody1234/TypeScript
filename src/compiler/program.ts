@@ -2237,11 +2237,25 @@ namespace ts {
                     // Otherwise break to visit each child
 
                     switch (parent.kind) {
-                        case SyntaxKind.Parameter:
                         case SyntaxKind.PropertyDeclaration:
                         case SyntaxKind.MethodDeclaration:
+                            // SYN TODO
+                            if ((parent as PropertyDeclaration | MethodDeclaration).exclamationToken === node) {
+                                if (!(node.flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, "!"));
+                                }
+                                return "skip";
+                            }
+                        // falls through
+                        case SyntaxKind.Parameter:
+                            // SYN TODO(method, prop)
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             if ((parent as ParameterDeclaration | PropertyDeclaration | MethodDeclaration).questionToken === node) {
-                                diagnostics.push(createDiagnosticForNode(node, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, "?"));
+                                if (!(node.flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, "?"));
+                                }
                                 return "skip";
                             }
                         // falls through
@@ -2253,7 +2267,11 @@ namespace ts {
                         case SyntaxKind.FunctionDeclaration:
                         case SyntaxKind.ArrowFunction:
                         case SyntaxKind.VariableDeclaration:
+                            // SYN DONE
                             // type annotation
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             if ((parent as FunctionLikeDeclaration | VariableDeclaration | ParameterDeclaration | PropertyDeclaration).type === node) {
                                 diagnostics.push(createDiagnosticForNode(node, Diagnostics.Type_annotations_can_only_be_used_in_TypeScript_files));
                                 return "skip";
@@ -2261,45 +2279,86 @@ namespace ts {
                     }
 
                     switch (node.kind) {
+                        case SyntaxKind.ImportSpecifier:
+                        case SyntaxKind.ExportSpecifier:
+                            // SYN TODO
+                            if (!(node as ImportOrExportSpecifier).isTypeOnly && node.parent.parent.flags & NodeFlags.InTypeComment) {
+                                diagnostics.push(createDiagnosticForNode(parent, Diagnostics.Comments_as_types_cannot_contain_JavaScript));
+                                return "skip";
+                            }
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                if (!(node as ImportOrExportSpecifier).isTypeOnly) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.Comments_as_types_cannot_contain_JavaScript));
+                                    return "skip";
+                                }
+                            }
+                            else {
+                                if ((node as ImportOrExportSpecifier).isTypeOnly) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, node.kind === SyntaxKind.ImportSpecifier ? "import { type }" : "export { type }"));
+                                    return "skip";
+                                }
+                            }
+                            return "skip";
                         case SyntaxKind.ImportClause:
-                            if ((node as ImportClause).isTypeOnly) {
+                            // SYN TODO
+                            if (!(node.flags & NodeFlags.InTypeComment) && (node as ImportClause).isTypeOnly) {
                                 diagnostics.push(createDiagnosticForNode(parent, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, "import type"));
                                 return "skip";
                             }
                             break;
                         case SyntaxKind.ExportDeclaration:
-                            if ((node as ExportDeclaration).isTypeOnly) {
+                            // SYN TODO
+                            if (!(node.flags & NodeFlags.InTypeComment) && (node as ExportDeclaration).isTypeOnly) {
                                 diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, "export type"));
                                 return "skip";
                             }
                             break;
                         case SyntaxKind.ImportEqualsDeclaration:
+                            // SYN TODO
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics.import_can_only_be_used_in_TypeScript_files));
                             return "skip";
                         case SyntaxKind.ExportAssignment:
+                            // SYN TODO
                             if ((node as ExportAssignment).isExportEquals) {
-                                diagnostics.push(createDiagnosticForNode(node, Diagnostics.export_can_only_be_used_in_TypeScript_files));
-                                return "skip";
+                                if (node.flags & NodeFlags.InTypeComment) {
+                                    return "skip";
+                                }
+                                else {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.export_can_only_be_used_in_TypeScript_files));
+                                    return "skip";
+                                }
                             }
                             break;
                         case SyntaxKind.HeritageClause:
+                            // SYN TODO
                             const heritageClause = node as HeritageClause;
                             if (heritageClause.token === SyntaxKind.ImplementsKeyword) {
-                                diagnostics.push(createDiagnosticForNode(node, Diagnostics.implements_clauses_can_only_be_used_in_TypeScript_files));
+                                if (!(node.flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.implements_clauses_can_only_be_used_in_TypeScript_files));
+                                }
                                 return "skip";
                             }
                             break;
                         case SyntaxKind.InterfaceDeclaration:
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             const interfaceKeyword = tokenToString(SyntaxKind.InterfaceKeyword);
                             Debug.assertIsDefined(interfaceKeyword);
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, interfaceKeyword));
                             return "skip";
                         case SyntaxKind.ModuleDeclaration:
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             const moduleKeyword = node.flags & NodeFlags.Namespace ? tokenToString(SyntaxKind.NamespaceKeyword) : tokenToString(SyntaxKind.ModuleKeyword);
                             Debug.assertIsDefined(moduleKeyword);
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, moduleKeyword));
                             return "skip";
                         case SyntaxKind.TypeAliasDeclaration:
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics.Type_aliases_can_only_be_used_in_TypeScript_files));
                             return "skip";
                         case SyntaxKind.EnumDeclaration:
@@ -2307,13 +2366,70 @@ namespace ts {
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_declarations_can_only_be_used_in_TypeScript_files, enumKeyword));
                             return "skip";
                         case SyntaxKind.NonNullExpression:
+                            // SYN TODO
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             diagnostics.push(createDiagnosticForNode(node, Diagnostics.Non_null_assertions_can_only_be_used_in_TypeScript_files));
                             return "skip";
                         case SyntaxKind.AsExpression:
+                            // SYN DONE
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
                             diagnostics.push(createDiagnosticForNode((node as AsExpression).type, Diagnostics.Type_assertion_expressions_can_only_be_used_in_TypeScript_files));
                             return "skip";
+                        case SyntaxKind.IndexSignature:
+                            // probably missing some other things...
+                            // but now might be a good time to build
+                            // just to see what has gone wrong
+                            // SYN TODO
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                return "skip";
+                            }
+                            break;
                         case SyntaxKind.TypeAssertionExpression:
-                            Debug.fail(); // Won't parse these in a JS file anyway, as they are interpreted as JSX.
+                            if (!(node.flags & NodeFlags.InTypeComment)) {
+                                // Debug.fail(); // Won't parse these in a JS file anyway, as they are interpreted as JSX.
+                            }
+                            break;
+                        case SyntaxKind.AnyKeyword:
+                        case SyntaxKind.UnknownKeyword:
+                        case SyntaxKind.StringKeyword:
+                        case SyntaxKind.NumberKeyword:
+                        case SyntaxKind.BigIntKeyword:
+                        case SyntaxKind.SymbolKeyword:
+                        case SyntaxKind.BooleanKeyword:
+                        case SyntaxKind.UndefinedKeyword:
+                        case SyntaxKind.NeverKeyword:
+                        case SyntaxKind.ObjectKeyword:
+                        case SyntaxKind.TypeReference:
+                            if (!(node.flags & NodeFlags.InTypeComment)) {
+                                diagnostics.push(createDiagnosticForNode(node, Diagnostics.Types_can_only_be_used_in_TypeScript_files));
+                            }
+                            return "skip";
+                        case SyntaxKind.EmptyStatement:
+                            // It's okay if this is in a type-as-comment since it doesn't do anything
+                            break;
+                        case SyntaxKind.Block:
+                            if ((node as Block).statements.length === 0) {
+                                // It's okay if this is in a type-as-comment since it doesn't do anything
+                                return "skip";
+                            }
+                            // falls through
+                        default:
+                            if (node.kind >= SyntaxKind.FirstTypeNode && node.kind <= SyntaxKind.LastTypeNode) {
+                                if (!(node.flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics.Types_can_only_be_used_in_TypeScript_files));
+                                }
+                                return "skip";
+                            }
+                            if (node.flags & NodeFlags.InTypeComment) {
+                                if (!node.modifiers?.some(modifier => modifier.kind === SyntaxKind.DeclareKeyword)) {
+                                    diagnostics.push(createDiagnosticForNode(node, Diagnostics._0_expected, node.kind));
+                                    return "skip";
+                                }
+                            }
                     }
                 }
 
@@ -2332,26 +2448,38 @@ namespace ts {
                         case SyntaxKind.FunctionExpression:
                         case SyntaxKind.FunctionDeclaration:
                         case SyntaxKind.ArrowFunction:
+                            // SYN DONE
                             // Check type parameters
                             if (nodes === (parent as DeclarationWithTypeParameterChildren).typeParameters) {
-                                diagnostics.push(createDiagnosticForNodeArray(nodes, Diagnostics.Type_parameter_declarations_can_only_be_used_in_TypeScript_files));
+                                if (nodes.length && !(nodes[0].flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNodeArray(nodes, Diagnostics.Type_parameter_declarations_can_only_be_used_in_TypeScript_files));
+                                }
                                 return "skip";
                             }
                         // falls through
 
                         case SyntaxKind.VariableStatement:
+                            // SYN TODO
                             // Check modifiers
                             if (nodes === parent.modifiers) {
-                                checkModifiers(parent.modifiers, parent.kind === SyntaxKind.VariableStatement);
+                                checkModifiers(parent.modifiers, parent, parent.kind === SyntaxKind.VariableStatement);
                                 return "skip";
                             }
                             break;
                         case SyntaxKind.PropertyDeclaration:
+                            // SYN TODO
                             // Check modifiers of property declaration
                             if (nodes === (parent as PropertyDeclaration).modifiers) {
                                 for (const modifier of nodes as NodeArray<Modifier>) {
-                                    if (modifier.kind !== SyntaxKind.StaticKeyword) {
-                                        diagnostics.push(createDiagnosticForNode(modifier, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, tokenToString(modifier.kind)));
+                                    if (modifier.flags & NodeFlags.InTypeComment) {
+                                        if (modifier.kind === SyntaxKind.StaticKeyword) {
+                                            diagnostics.push(createDiagnosticForNode(modifier, Diagnostics.Comments_as_types_cannot_contain_JavaScript));
+                                        }
+                                    }
+                                    else {
+                                        if (modifier.kind !== SyntaxKind.StaticKeyword) {
+                                            diagnostics.push(createDiagnosticForNode(modifier, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, tokenToString(modifier.kind)));
+                                        }
                                     }
                                 }
                                 return "skip";
@@ -2359,7 +2487,7 @@ namespace ts {
                             break;
                         case SyntaxKind.Parameter:
                             // Check modifiers of parameter declaration
-                            if (nodes === (parent as ParameterDeclaration).modifiers) {
+                            if (nodes === (parent as ParameterDeclaration).modifiers && nodes.some(node => !(node.flags & NodeFlags.InTypeComment))) {
                                 diagnostics.push(createDiagnosticForNodeArray(nodes, Diagnostics.Parameter_modifiers_can_only_be_used_in_TypeScript_files));
                                 return "skip";
                             }
@@ -2371,7 +2499,7 @@ namespace ts {
                         case SyntaxKind.JsxOpeningElement:
                         case SyntaxKind.TaggedTemplateExpression:
                             // Check type arguments
-                            if (nodes === (parent as NodeWithTypeArguments).typeArguments) {
+                            if (nodes === (parent as NodeWithTypeArguments).typeArguments && (nodes.length && !(nodes[0].flags & NodeFlags.InTypeComment))) {
                                 diagnostics.push(createDiagnosticForNodeArray(nodes, Diagnostics.Type_arguments_can_only_be_used_in_TypeScript_files));
                                 return "skip";
                             }
@@ -2379,31 +2507,43 @@ namespace ts {
                     }
                 }
 
-                function checkModifiers(modifiers: NodeArray<Modifier>, isConstValid: boolean) {
+                function checkModifiers(modifiers: NodeArray<Modifier>, parent: Node, isConstValid: boolean) {
                     for (const modifier of modifiers) {
-                        switch (modifier.kind) {
+                        const kind = modifier.kind;
+                        switch (kind) {
                             case SyntaxKind.ConstKeyword:
                                 if (isConstValid) {
                                     continue;
                                 }
                             // to report error,
                             // falls through
+                            case SyntaxKind.DeclareKeyword:
+                                if (kind === SyntaxKind.DeclareKeyword && modifier.flags & NodeFlags.InTypeComment && !(parent.flags & NodeFlags.InTypeComment)) {
+                                    diagnostics.push(createDiagnosticForNode(modifier, Diagnostics.The_declare_modifier_cannot_be_used_on_a_JavaScript_declaration));
+                                    break;
+                                }
+                            // falls through
                             case SyntaxKind.PublicKeyword:
                             case SyntaxKind.PrivateKeyword:
                             case SyntaxKind.ProtectedKeyword:
                             case SyntaxKind.ReadonlyKeyword:
-                            case SyntaxKind.DeclareKeyword:
                             case SyntaxKind.AbstractKeyword:
                             case SyntaxKind.OverrideKeyword:
                             case SyntaxKind.InKeyword:
                             case SyntaxKind.OutKeyword:
+                                if (modifier.flags & NodeFlags.InTypeComment) {
+                                    continue;
+                                }
                                 diagnostics.push(createDiagnosticForNode(modifier, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, tokenToString(modifier.kind)));
                                 break;
-
                             // These are all legal modifiers.
                             case SyntaxKind.StaticKeyword:
                             case SyntaxKind.ExportKeyword:
                             case SyntaxKind.DefaultKeyword:
+                            case SyntaxKind.AsyncKeyword:
+                                continue;
+                            default:
+                                Debug.assertNever(kind);
                         }
                     }
                 }

@@ -672,7 +672,7 @@ namespace ts {
                         break;
 
                     case SyntaxKind.ShebangTrivia:
-                        // TODO: Maybe we should classify these.
+                        // TODO: Maybe we should classify this.
                         break;
 
                     default:
