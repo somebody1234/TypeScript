@@ -6376,6 +6376,18 @@
         "category": "Error",
         "code": 8036
     },
+    "Types can only be used in TypeScript files.": {
+        "category": "Error",
+        "code": 8037
+    },
+    "Comments-as-types cannot contain JavaScript.": {
+        "category": "Error",
+        "code": 8038
+    },
+    "The 'declare' modifier cannot be used on a JavaScript declaration.": {
+        "category": "Error",
+        "code": 8039
+    },
 
     "Declaration emit for this file requires using private name '{0}'. An explicit type annotation may unblock declaration emit.": {
         "category": "Error",

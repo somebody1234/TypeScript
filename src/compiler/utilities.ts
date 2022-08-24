@@ -1184,14 +1184,16 @@ namespace ts {
         const isMissing = nodeIsMissing(errorNode);
         const pos = isMissing || isJsxText(node)
             ? errorNode.pos
-            : skipTrivia(sourceFile.text, errorNode.pos);
+            : skipTrivia(sourceFile.text, errorNode.pos, false, false, false, !!(node.flags & NodeFlags.InTypeComment));
 
         // These asserts should all be satisfied for a properly constructed `errorNode`.
         if (isMissing) {
+            console.log('isMissing ' + isMissing + ' pos ' + pos + ' errKind ' + errorNode.kind + ' errPos ' +  errorNode.pos + ' errEnd ' + errorNode.end + ' skipped "' + sourceFile.text.slice(errorNode.pos, pos) + '"');
             Debug.assert(pos === errorNode.pos, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809");
             Debug.assert(pos === errorNode.end, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809");
         }
         else {
+            console.log('isMissing ' + isMissing + ' pos ' + pos + ' errKind ' + errorNode.kind + ' errPos ' +  errorNode.pos + ' errEnd ' + errorNode.end + ' skipped "' + sourceFile.text.slice(errorNode.pos, pos) + '"');
             Debug.assert(pos >= errorNode.pos, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809");
             Debug.assert(pos <= errorNode.end, "This failure could trigger https://github.com/Microsoft/TypeScript/issues/20809");
         }
@@ -3859,6 +3861,9 @@ namespace ts {
             case SyntaxKind.InstanceOfKeyword:
             case SyntaxKind.InKeyword:
             case SyntaxKind.AsKeyword:
+            // Not an operator, but may be before "as"
+            // falls through
+            case SyntaxKind.SlashAsteriskColonColonToken:
                 return OperatorPrecedence.Relational;
             case SyntaxKind.LessThanLessThanToken:
             case SyntaxKind.GreaterThanGreaterThanToken:

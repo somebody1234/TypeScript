@@ -539,7 +539,7 @@ namespace ts.Completions {
         );
 
         if (keywordFilters !== KeywordCompletionFilters.None) {
-            for (const keywordEntry of getKeywordCompletions(keywordFilters, !insideJsDocTagTypeExpression && isSourceFileJS(sourceFile))) {
+            for (const keywordEntry of getKeywordCompletions(keywordFilters, !insideJsDocTagTypeExpression && isSourceFileJS(sourceFile) && !isInTypeAnnotationComment(sourceFile, position))) {
                 if (isTypeOnlyLocation && isTypeKeyword(stringToToken(keywordEntry.name)!) || !uniqueNames.has(keywordEntry.name)) {
                     uniqueNames.add(keywordEntry.name);
                     insertSorted(entries, keywordEntry, compareCompletionEntries, /*allowDuplicates*/ true);
@@ -573,6 +573,17 @@ namespace ts.Completions {
             optionalReplacementSpan: getOptionalReplacementSpan(location),
             entries,
         };
+    }
+
+    function isInTypeAnnotationComment(sourceFile: SourceFile, position: number): boolean {
+        return isInTypeAnnotationCommentFromTokens(getTokenAtPosition(sourceFile, position), getRelevantTokens(position, sourceFile));
+    }
+
+    function isInTypeAnnotationCommentFromTokens(currentToken: Node, tokens: { contextToken?: Node; previousToken?: Node; }) {
+        return !!(currentToken.flags & NodeFlags.InTypeComment) ||
+            !!((tokens.previousToken?.flags || 0) & NodeFlags.InTypeComment) ||
+            ((tokens.previousToken?.kind === SyntaxKind.SlashAsteriskColonToken || tokens.previousToken?.kind === SyntaxKind.ColonToken) &&
+                currentToken.kind === SyntaxKind.AsteriskSlashToken);
     }
 
     function isCheckedFile(sourceFile: SourceFile, compilerOptions: CompilerOptions): boolean {
@@ -1995,10 +2006,10 @@ namespace ts.Completions {
         start = timestamp();
         // The decision to provide completion depends on the contextToken, which is determined through the previousToken.
         // Note: 'previousToken' (and thus 'contextToken') can be undefined if we are the beginning of the file
-        const isJsOnlyLocation = !insideJsDocTagTypeExpression && isSourceFileJS(sourceFile);
         const tokens = getRelevantTokens(position, sourceFile);
         const previousToken = tokens.previousToken!;
         let contextToken = tokens.contextToken!;
+        const isJsOnlyLocation = !insideJsDocTagTypeExpression && isSourceFileJS(sourceFile) && !isInTypeAnnotationCommentFromTokens(currentToken, tokens);
         log("getCompletionData: Get previous token: " + (timestamp() - start));
 
         // Find the node where completion is requested on.
@@ -2210,6 +2221,7 @@ namespace ts.Completions {
             // global symbols in scope.  These results should be valid for either language as
             // the set of symbols that can be referenced from this location.
             if (!tryGetGlobalSymbols()) {
+                log('ono tryGetGlobalSymbols false??');
                 return keywordFilters
                     ? keywordCompletionData(keywordFilters, isJsOnlyLocation, isNewIdentifierLocation)
                     : undefined;
@@ -2654,6 +2666,7 @@ namespace ts.Completions {
             if (contextToken) {
                 const parentKind = contextToken.parent.kind;
                 switch (contextToken.kind) {
+                    case SyntaxKind.SlashAsteriskColonToken:
                     case SyntaxKind.ColonToken:
                         return parentKind === SyntaxKind.PropertyDeclaration ||
                             parentKind === SyntaxKind.PropertySignature ||

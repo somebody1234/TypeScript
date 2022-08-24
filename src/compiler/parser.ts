@@ -1172,6 +1172,17 @@ namespace ts {
             nextToken();
 
             const statements = parseList(ParsingContext.SourceElements, parseStatement);
+            const asteriskSlash = parseOptionalToken(SyntaxKind.AsteriskSlashToken);
+            if (contextFlags & NodeFlags.InTypeComment) {
+                if (!asteriskSlash) {
+                    parseErrorAtPosition(scanner.getStartPos(), 0, Diagnostics._0_expected, tokenToString(SyntaxKind.AsteriskSlashToken));
+                }
+            }
+            else {
+                if (asteriskSlash && !(contextFlags & NodeFlags.InTypeComment)) {
+                    parseErrorAt(asteriskSlash.pos, asteriskSlash.end, Diagnostics.Unexpected_token);
+                }
+            }
             Debug.assert(token() === SyntaxKind.EndOfFileToken);
             const endOfFileToken = addJSDocComment(parseTokenNode<EndOfFileToken>());
 
@@ -1395,6 +1406,23 @@ namespace ts {
 
         function setAwaitContext(val: boolean) {
             setContextFlag(val, NodeFlags.AwaitContext);
+        }
+
+        function setInTypeCommentContext(val: boolean) {
+            setContextFlag(val, NodeFlags.InTypeComment);
+        }
+
+        function setInTypeCommentContextAnd<T>(val: boolean, func: () => T): T {
+            if (val) {
+                setInTypeCommentContext(true);
+                const result = func();
+                parseExpected(SyntaxKind.AsteriskSlashToken);
+                setInTypeCommentContext(false);
+                return result;
+            }
+
+            // No need to do anything special
+            return func();
         }
 
         function doOutsideOfContext<T>(context: NodeFlags, func: () => T): T {
@@ -1630,7 +1658,14 @@ namespace ts {
                 ? scanner.lookAhead(callback)
                 : scanner.tryScan(callback);
 
-            Debug.assert(saveContextFlags === contextFlags);
+            if (!syntaxCursor) {
+                Debug.assert(saveContextFlags === contextFlags);
+            }
+            else {
+                if (saveContextFlags !== contextFlags) {
+                    console.log('what? debug failure ' + (scanner.getStartPos()) + ' ' + (typeof scanner.getStartPos()) + ' ' + (scanner.getStartPos() - 10) + ' ' + (scanner.getStartPos() + 10) + ' ' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos() + 10));
+                }
+            }
 
             // If our callback returned something 'falsy' or we're just looking ahead,
             // then unconditionally restore us to where we were.
@@ -1925,7 +1960,10 @@ namespace ts {
             }
 
             // We can parse out an optional semicolon in ASI cases in the following cases.
-            return token() === SyntaxKind.CloseBraceToken || token() === SyntaxKind.EndOfFileToken || scanner.hasPrecedingLineBreak();
+            return token() === SyntaxKind.CloseBraceToken ||
+                token() === SyntaxKind.EndOfFileToken ||
+                scanner.hasPrecedingLineBreak() ||
+                lookAhead(() => parseOptional(SyntaxKind.AsteriskSlashToken) && !!nextToken() && scanner.hasPrecedingLineBreak());
         }
 
         function tryParseSemicolon() {
@@ -2107,7 +2145,7 @@ namespace ts {
         }
 
         function parseContextualModifier(t: SyntaxKind): boolean {
-            return token() === t && tryParse(nextTokenCanFollowModifier);
+            return token() === t && tryParse(() => nextTokenCanFollowModifier() && token() !== SyntaxKind.AsteriskSlashToken);
         }
 
         function nextTokenIsOnSameLineAndCanFollowModifier() {
@@ -2138,7 +2176,7 @@ namespace ts {
                 case SyntaxKind.GetKeyword:
                 case SyntaxKind.SetKeyword:
                     nextToken();
-                    return canFollowModifier();
+                    return canFollowModifier() && token() !== SyntaxKind.AsteriskSlashToken;
                 default:
                     return nextTokenIsOnSameLineAndCanFollowModifier();
             }
@@ -2148,6 +2186,7 @@ namespace ts {
             return token() !== SyntaxKind.AsteriskToken
                 && token() !== SyntaxKind.AsKeyword
                 && token() !== SyntaxKind.OpenBraceToken
+                && token() !== SyntaxKind.AsteriskSlashToken
                 && canFollowModifier();
         }
 
@@ -2165,6 +2204,7 @@ namespace ts {
                 || token() === SyntaxKind.OpenBraceToken
                 || token() === SyntaxKind.AsteriskToken
                 || token() === SyntaxKind.DotDotDotToken
+                || token() === SyntaxKind.AsteriskSlashToken
                 || isLiteralPropertyName();
         }
 
@@ -2265,7 +2305,7 @@ namespace ts {
                 case ParsingContext.HeritageClauses:
                     return isHeritageClause();
                 case ParsingContext.ImportOrExportSpecifiers:
-                    return tokenIsIdentifierOrKeyword(token());
+                    return tokenIsIdentifierOrKeyword(token()) || token() === SyntaxKind.SlashAsteriskColonColonToken;
                 case ParsingContext.JsxAttributes:
                     return tokenIsIdentifierOrKeyword(token()) || token() === SyntaxKind.OpenBraceToken;
                 case ParsingContext.JsxChildren:
@@ -2347,17 +2387,29 @@ namespace ts {
                 case ParsingContext.AssertEntries:
                     return token() === SyntaxKind.CloseBraceToken;
                 case ParsingContext.SwitchClauseStatements:
-                    return token() === SyntaxKind.CloseBraceToken || token() === SyntaxKind.CaseKeyword || token() === SyntaxKind.DefaultKeyword;
+                    return token() === SyntaxKind.CloseBraceToken ||
+                        token() === SyntaxKind.CaseKeyword ||
+                        token() === SyntaxKind.DefaultKeyword;
                 case ParsingContext.HeritageClauseElement:
-                    return token() === SyntaxKind.OpenBraceToken || token() === SyntaxKind.ExtendsKeyword || token() === SyntaxKind.ImplementsKeyword;
+                    return token() === SyntaxKind.OpenBraceToken ||
+                        token() === SyntaxKind.ExtendsKeyword ||
+                        token() === SyntaxKind.ImplementsKeyword ||
+                        token() === SyntaxKind.AsteriskSlashToken ||
+                        token() === SyntaxKind.SlashAsteriskColonColonToken;
                 case ParsingContext.VariableDeclarations:
                     return isVariableDeclaratorListTerminator();
                 case ParsingContext.TypeParameters:
                     // Tokens other than '>' are here for better error recovery
-                    return token() === SyntaxKind.GreaterThanToken || token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.OpenBraceToken || token() === SyntaxKind.ExtendsKeyword || token() === SyntaxKind.ImplementsKeyword;
+                    return token() === SyntaxKind.GreaterThanToken ||
+                        token() === SyntaxKind.OpenParenToken ||
+                        token() === SyntaxKind.OpenBraceToken ||
+                        token() === SyntaxKind.ExtendsKeyword ||
+                        token() === SyntaxKind.ImplementsKeyword ||
+                        token() === SyntaxKind.AsteriskSlashToken;
                 case ParsingContext.ArgumentExpressions:
                     // Tokens other than ')' are here for better error recovery
-                    return token() === SyntaxKind.CloseParenToken || token() === SyntaxKind.SemicolonToken;
+                    return token() === SyntaxKind.CloseParenToken ||
+                        token() === SyntaxKind.SemicolonToken;
                 case ParsingContext.ArrayLiteralMembers:
                 case ParsingContext.TupleElementTypes:
                 case ParsingContext.ArrayBindingElements:
@@ -2366,14 +2418,18 @@ namespace ts {
                 case ParsingContext.Parameters:
                 case ParsingContext.RestProperties:
                     // Tokens other than ')' and ']' (the latter for index signatures) are here for better error recovery
-                    return token() === SyntaxKind.CloseParenToken || token() === SyntaxKind.CloseBracketToken /*|| token === SyntaxKind.OpenBraceToken*/;
+                    return token() === SyntaxKind.CloseParenToken ||
+                        token() === SyntaxKind.CloseBracketToken /*||
+                        token === SyntaxKind.OpenBraceToken*/;
                 case ParsingContext.TypeArguments:
                     // All other tokens should cause the type-argument to terminate except comma token
                     return token() !== SyntaxKind.CommaToken;
                 case ParsingContext.HeritageClauses:
-                    return token() === SyntaxKind.OpenBraceToken || token() === SyntaxKind.CloseBraceToken;
+                    return token() === SyntaxKind.OpenBraceToken ||
+                        token() === SyntaxKind.CloseBraceToken;
                 case ParsingContext.JsxAttributes:
-                    return token() === SyntaxKind.GreaterThanToken || token() === SyntaxKind.SlashToken;
+                    return token() === SyntaxKind.GreaterThanToken ||
+                        token() === SyntaxKind.SlashToken;
                 case ParsingContext.JsxChildren:
                     return token() === SyntaxKind.LessThanToken && lookAhead(nextTokenIsSlash);
                 default:
@@ -2445,7 +2501,28 @@ namespace ts {
         function parseListElement<T extends Node | undefined>(parsingContext: ParsingContext, parseElement: () => T): T {
             const node = currentNode(parsingContext);
             if (node) {
-                return consumeNode(node) as T;
+                const result = consumeNode(node) as T;
+                // Nodes don't extend to a possible trailing */ // or preceding /*::
+                // so we must skip it manually
+                parseOptional(SyntaxKind.AsteriskSlashToken); // || parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
+                // TODO: do we need to keep InTypeComment of contextFlags in sync with node.flags??
+                let inTypeComment = !!(node.flags & NodeFlags.InTypeComment);
+                if (parseOptional(SyntaxKind.AsteriskSlashToken)) {
+                    inTypeComment = false;
+                }
+                setInTypeCommentContext(inTypeComment);
+                scanner.setInTypeComment(inTypeComment);
+                return result;
+            }
+            else if (syntaxCursor) {
+                const node = syntaxCursor.currentNode(scanner.getStartPos());
+                // We shouldn't need this but it is occasionally `null`
+                console.log('incremental node ' + node?.kind + ' InTypeComment ' + (node && (node.flags & NodeFlags.InTypeComment) + '"' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"'))
+                if (node) {
+                    const inTypeComment = !!(node.flags & NodeFlags.InTypeComment);
+                    setInTypeCommentContext(inTypeComment);
+                    scanner.setInTypeComment(inTypeComment);
+                }
             }
 
             return parseElement();
@@ -2789,16 +2866,34 @@ namespace ts {
         }
 
         // Parses a comma-delimited list of elements
-        function parseDelimitedList<T extends Node>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean): NodeArray<T>;
-        function parseDelimitedList<T extends Node | undefined>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean): NodeArray<NonNullable<T>> | undefined;
-        function parseDelimitedList<T extends Node | undefined>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean): NodeArray<NonNullable<T>> | undefined {
+        function parseDelimitedList<T extends Node>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean, allowTypesAsComments?: boolean): NodeArray<T>;
+        function parseDelimitedList<T extends Node | undefined>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean, allowTypesAsComments?: boolean): NodeArray<NonNullable<T>> | undefined;
+        function parseDelimitedList<T extends Node | undefined>(kind: ParsingContext, parseElement: () => T, considerSemicolonAsDelimiter?: boolean, allowTypesAsComments?: boolean): NodeArray<NonNullable<T>> | undefined {
             const saveParsingContext = parsingContext;
             parsingContext |= 1 << kind;
             const list = [];
             const listPos = getNodePos();
 
             let commaStart = -1; // Meaning the previous token was not a comma
+            let inTypeComment = false;
+            let typeCommentStartedAfterComma = false;
+            let asteriskSlash: Token<SyntaxKind.AsteriskSlashToken>;
             while (true) {
+                if (allowTypesAsComments && (asteriskSlash = parseOptionalToken(SyntaxKind.AsteriskSlashToken))) {
+                    if (inTypeComment && (typeCommentStartedAfterComma || isListTerminator(kind))) {
+                        inTypeComment = false;
+                    }
+                    else {
+                        console.log('parseDelimitedList inTypeComment ' + inTypeComment + ' typeCommentStartedAfterComma ' + typeCommentStartedAfterComma + ' isListTerminator(kind) ' + isListTerminator(kind) + ' "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                        parseErrorAt(asteriskSlash.pos, asteriskSlash.end, Diagnostics.Unexpected_token);
+                    }
+                    setInTypeCommentContext(false);
+                }
+                if (allowTypesAsComments && parseOptional(SyntaxKind.SlashAsteriskColonColonToken)) {
+                    setInTypeCommentContext(true);
+                    inTypeComment = true;
+                    typeCommentStartedAfterComma = true;
+                }
                 if (isListElement(kind, /*inErrorRecovery*/ false)) {
                     const startPos = scanner.getStartPos();
                     const result = parseListElement(kind, parseElement);
@@ -2807,6 +2902,21 @@ namespace ts {
                         return undefined;
                     }
                     list.push(result as NonNullable<T>);
+                    if (allowTypesAsComments && (asteriskSlash = parseOptionalToken(SyntaxKind.AsteriskSlashToken))) {
+                        if (inTypeComment && (!typeCommentStartedAfterComma || isListTerminator(kind))) {
+                            inTypeComment = false;
+                        }
+                        else {
+                            console.log('parseDelimitedList 2 inTypeComment ' + inTypeComment + ' typeCommentStartedAfterComma ' + typeCommentStartedAfterComma + ' isListTerminator(kind) ' + isListTerminator(kind) + ' "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                            parseErrorAt(asteriskSlash.pos, asteriskSlash.end, Diagnostics.Unexpected_token);
+                        }
+                        setInTypeCommentContext(false);
+                    }
+                    if (allowTypesAsComments && parseOptional(SyntaxKind.SlashAsteriskColonColonToken)) {
+                        setInTypeCommentContext(true);
+                        inTypeComment = true;
+                        typeCommentStartedAfterComma = false;
+                    }
                     commaStart = scanner.getTokenPos();
 
                     if (parseOptional(SyntaxKind.CommaToken)) {
@@ -2878,9 +2988,9 @@ namespace ts {
             return !!(arr as MissingList<Node>).isMissingList;
         }
 
-        function parseBracketedList<T extends Node>(kind: ParsingContext, parseElement: () => T, open: SyntaxKind, close: SyntaxKind): NodeArray<T> {
+        function parseBracketedList<T extends Node>(kind: ParsingContext, parseElement: () => T, open: SyntaxKind, close: SyntaxKind, allowTypesAsComments?: boolean): NodeArray<T> {
             if (parseExpected(open)) {
-                const result = parseDelimitedList(kind, parseElement);
+                const result = parseDelimitedList(kind, parseElement, /*considerSemicolonAsDelimiter*/ false, allowTypesAsComments);
                 parseExpected(close);
                 return result;
             }
@@ -3285,8 +3395,12 @@ namespace ts {
         }
 
         function parseTypeParameters(): NodeArray<TypeParameterDeclaration> | undefined {
+            const inTypeComment = tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.LessThanToken);
             if (token() === SyntaxKind.LessThanToken) {
-                return parseBracketedList(ParsingContext.TypeParameters, parseTypeParameter, SyntaxKind.LessThanToken, SyntaxKind.GreaterThanToken);
+                return setInTypeCommentContextAnd(
+                    inTypeComment,
+                    () => parseBracketedList(ParsingContext.TypeParameters, parseTypeParameter, SyntaxKind.LessThanToken, SyntaxKind.GreaterThanToken),
+                );
             }
         }
 
@@ -3295,7 +3409,8 @@ namespace ts {
                 isBindingIdentifierOrPrivateIdentifierOrPattern() ||
                 isModifierKind(token()) ||
                 token() === SyntaxKind.AtToken ||
-                isStartOfType(/*inStartOfParameter*/ !isJSDocParameter);
+                isStartOfType(/*inStartOfParameter*/ !isJSDocParameter) ||
+                !isJSDocParameter && token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => isModifierKind(nextToken()));
         }
 
         function parseNameOfParameter(modifiers: NodeArray<ModifierLike> | undefined) {
@@ -3362,7 +3477,6 @@ namespace ts {
 
             const savedTopLevel = topLevel;
             topLevel = false;
-
             const modifiers = combineDecoratorsAndModifiers(decorators, parseModifiers());
             const dotDotDotToken = parseOptionalToken(SyntaxKind.DotDotDotToken);
 
@@ -3370,15 +3484,24 @@ namespace ts {
                 return undefined;
             }
 
+            const name = parseNameOfParameter(modifiers);
+            const [question, typeAnnotation] = setInTypeCommentContextAnd(
+                tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.QuestionToken),
+                () => [
+                    parseOptionalToken(SyntaxKind.QuestionToken),
+                    parseTypeAnnotation(),
+                ]
+            );
+            const initializer = parseInitializer();
             const node = withJSDoc(
                 finishNode(
                     factory.createParameterDeclaration(
                         modifiers,
                         dotDotDotToken,
-                        parseNameOfParameter(modifiers),
-                        parseOptionalToken(SyntaxKind.QuestionToken),
-                        parseTypeAnnotation(),
-                        parseInitializer()
+                        name,
+                        question,
+                        typeAnnotation,
+                        initializer
                     ),
                     pos
                 ),
@@ -3391,8 +3514,12 @@ namespace ts {
         function parseReturnType(returnToken: SyntaxKind.EqualsGreaterThanToken, isType: boolean): TypeNode;
         function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken, isType: boolean): TypeNode | undefined;
         function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken, isType: boolean) {
-            if (shouldParseReturnType(returnToken, isType)) {
-                return allowConditionalTypesAnd(parseTypeOrTypePredicate);
+            const inTypeComment = returnToken === SyntaxKind.ColonToken && !isType && (
+                parseOptional(SyntaxKind.SlashAsteriskColonToken) ||
+                tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && parseOptional(SyntaxKind.ColonToken))
+            );
+            if (inTypeComment || shouldParseReturnType(returnToken, isType)) {
+                return setInTypeCommentContextAnd(inTypeComment, () => allowConditionalTypesAnd(parseTypeOrTypePredicate));
             }
         }
 
@@ -3435,9 +3562,48 @@ namespace ts {
             setYieldContext(!!(flags & SignatureFlags.Yield));
             setAwaitContext(!!(flags & SignatureFlags.Await));
 
+            let missingCommaAt = -1;
+            const commentedThisParameter = flags & SignatureFlags.JSDoc ? undefined : tryParse(() => {
+                const pos = getNodePos();
+                const hasJSDoc = hasPrecedingJSDocComment();
+                const decorators = flags & SignatureFlags.Await ? doInAwaitContext(parseDecorators) : parseDecorators();
+
+                if (!parseOptional(SyntaxKind.SlashAsteriskColonColonToken) || token() !== SyntaxKind.ThisKeyword) {
+                    return;
+                }
+
+                return setInTypeCommentContextAnd(true, () => {
+                    const node = factory.createParameterDeclaration(
+                        decorators,
+                        /*dotDotDotToken*/ undefined,
+                        createIdentifier(/*isIdentifier*/ true),
+                        /*questionToken*/ undefined,
+                        parseTypeAnnotation(),
+                        /*initializer*/ undefined
+                    );
+
+                    if (decorators) {
+                        parseErrorAtRange(decorators[0], Diagnostics.Decorators_may_not_be_applied_to_this_parameters);
+                    }
+
+                    if (!parseOptional(SyntaxKind.CommaToken)) {
+                        missingCommaAt = getNodePos();
+                    }
+
+                    return withJSDoc(finishNode(node, pos), hasJSDoc);
+                });
+            });
+
             const parameters = flags & SignatureFlags.JSDoc ?
                 parseDelimitedList(ParsingContext.JSDocParameters, parseJSDocParameter) :
                 parseDelimitedList(ParsingContext.Parameters, () => allowAmbiguity ? parseParameter(savedAwaitContext) : parseParameterForSpeculation(savedAwaitContext));
+
+            if (commentedThisParameter) {
+                if (missingCommaAt >= 0 && parameters?.length) {
+                    parseErrorAtPosition(missingCommaAt, 0, Diagnostics._0_expected, tokenToString(SyntaxKind.CommaToken));
+                }
+                (parameters as MutableNodeArray<ParameterDeclaration>).unshift(commentedThisParameter);
+            }
 
             setYieldContext(savedYieldContext);
             setAwaitContext(savedAwaitContext);
@@ -4257,7 +4423,12 @@ namespace ts {
         }
 
         function parseTypeAnnotation(): TypeNode | undefined {
-            return parseOptional(SyntaxKind.ColonToken) ? parseType() : undefined;
+            const inTypeComment = parseOptional(SyntaxKind.SlashAsteriskColonToken) ||
+                tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && parseOptional(SyntaxKind.ColonToken));
+            if (inTypeComment || parseOptional(SyntaxKind.ColonToken)) {
+                return setInTypeCommentContextAnd(inTypeComment, parseType);
+            }
+            return undefined;
         }
 
         // EXPRESSIONS
@@ -4313,6 +4484,10 @@ namespace ts {
                     // it is definitely an expression).  Or it's a keyword (either because we're in
                     // a generator or async function, or in strict mode (or both)) and it started a yield or await expression.
                     return true;
+                case SyntaxKind.SlashAsteriskColonColonToken:
+                    // `/*::` is valid only for `<T> foo;` type assertions
+                    // and `/*::<T>*/() => {}` generic arrow functions
+                    return lookAhead(() => nextToken() === SyntaxKind.LessThanToken);
                 default:
                     // Error tolerance.  If we see the start of some binary operator, we consider
                     // that the start of an expression.  That way we'll parse out a missing identifier,
@@ -4528,7 +4703,9 @@ namespace ts {
         //  Unknown     -> There *might* be a parenthesized arrow function here.
         //                 Speculatively look ahead to be sure, and rollback if not.
         function isParenthesizedArrowFunctionExpression(): Tristate {
-            if (token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken || token() === SyntaxKind.AsyncKeyword) {
+            if (token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken || token() === SyntaxKind.AsyncKeyword ||
+                token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => nextToken() === SyntaxKind.LessThanToken)
+            ) {
                 return lookAhead(isParenthesizedArrowFunctionExpressionWorker);
             }
 
@@ -4543,14 +4720,20 @@ namespace ts {
         }
 
         function isParenthesizedArrowFunctionExpressionWorker() {
+            let isInTypeComment = false;
             if (token() === SyntaxKind.AsyncKeyword) {
                 nextToken();
                 if (scanner.hasPrecedingLineBreak()) {
                     return Tristate.False;
                 }
+                isInTypeComment = tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.LessThanToken && (console.log('commented generic params ' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos() + 10)), true));
                 if (token() !== SyntaxKind.OpenParenToken && token() !== SyntaxKind.LessThanToken) {
                     return Tristate.False;
                 }
+            }
+
+            if (!isInTypeComment) {
+                isInTypeComment = tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.LessThanToken);
             }
 
             const first = token();
@@ -4558,7 +4741,7 @@ namespace ts {
 
             if (first === SyntaxKind.OpenParenToken) {
                 if (second === SyntaxKind.CloseParenToken) {
-                    // Simple cases: "() =>", "(): ", and "() {".
+                    // Simple cases: "() =>", "(): ", "()/*: ", "()/*:: :", and "() {".
                     // This is an arrow function with no parameters.
                     // The last one is not actually an arrow function,
                     // but this is probably what the user intended.
@@ -4566,8 +4749,11 @@ namespace ts {
                     switch (third) {
                         case SyntaxKind.EqualsGreaterThanToken:
                         case SyntaxKind.ColonToken:
+                        case SyntaxKind.SlashAsteriskColonToken:
                         case SyntaxKind.OpenBraceToken:
                             return Tristate.True;
+                        case SyntaxKind.SlashAsteriskColonColonToken:
+                            return nextToken() === SyntaxKind.ColonToken ? Tristate.True : Tristate.False;
                         default:
                             return Tristate.False;
                     }
@@ -4609,9 +4795,12 @@ namespace ts {
 
                 switch (nextToken()) {
                     case SyntaxKind.ColonToken:
-                        // If we have something like "(a:", then we must have a
+                    case SyntaxKind.SlashAsteriskColonToken:
+                        // If we have something like "(a:" or "(a/*: ", then we must have a
                         // type-annotated parameter in an arrow function expression.
                         return Tristate.True;
+                    case SyntaxKind.SlashAsteriskColonColonToken:
+                        return nextToken() === SyntaxKind.ColonToken ? Tristate.True : Tristate.False;
                     case SyntaxKind.QuestionToken:
                         nextToken();
                         // If we have "(a?:" or "(a?," or "(a?=" or "(a?)" then it is definitely a lambda.
@@ -4639,7 +4828,7 @@ namespace ts {
                 }
 
                 // JSX overrides
-                if (languageVariant === LanguageVariant.JSX) {
+                if (languageVariant === LanguageVariant.JSX && !isInTypeComment) {
                     const isArrowFunctionInJsx = lookAhead(() => {
                         const third = nextToken();
                         if (third === SyntaxKind.ExtendsKeyword) {
@@ -4932,6 +5121,7 @@ namespace ts {
                     break;
                 }
 
+                const asInTypeComment = tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.AsKeyword);
                 if (token() === SyntaxKind.AsKeyword) {
                     // Make sure we *do* perform ASI for constructs like this:
                     //    var x = foo
@@ -4943,7 +5133,7 @@ namespace ts {
                     }
                     else {
                         nextToken();
-                        leftOperand = makeAsExpression(leftOperand, parseType());
+                        leftOperand = setInTypeCommentContextAnd(asInTypeComment, () => makeAsExpression(leftOperand, parseType()));
                     }
                 }
                 else {
@@ -5086,6 +5276,7 @@ namespace ts {
                     return parseTypeOfExpression();
                 case SyntaxKind.VoidKeyword:
                     return parseVoidExpression();
+                case SyntaxKind.SlashAsteriskColonColonToken:
                 case SyntaxKind.LessThanToken:
                     // This is modified UnaryExpression grammar in TypeScript
                     //  UnaryExpression (modified):
@@ -5124,6 +5315,9 @@ namespace ts {
                 case SyntaxKind.VoidKeyword:
                 case SyntaxKind.AwaitKeyword:
                     return false;
+                case SyntaxKind.SlashAsteriskColonColonToken:
+                    // If we see `/*::<` then we are at the beginning of a TypeAssertion
+                    return lookAhead(() => nextToken() !== SyntaxKind.LessThanToken);
                 case SyntaxKind.LessThanToken:
                     // If we are not in JSX context, we are parsing TypeAssertion which is an UnaryExpression
                     if (languageVariant !== LanguageVariant.JSX) {
@@ -5290,7 +5484,9 @@ namespace ts {
         function parseSuperExpression(): MemberExpression {
             const pos = getNodePos();
             let expression = parseTokenNode<MemberExpression>();
-            if (token() === SyntaxKind.LessThanToken) {
+            if (token() === SyntaxKind.LessThanToken ||
+                token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => nextToken() === SyntaxKind.LessThanToken)
+            ) {
                 const startPos = getNodePos();
                 const typeArguments = tryParse(parseTypeArgumentsInExpression);
                 if (typeArguments !== undefined) {
@@ -5460,7 +5656,7 @@ namespace ts {
                 return finishNode(factory.createJsxOpeningFragment(), pos);
             }
             const tagName = parseJsxElementName();
-            const typeArguments = (contextFlags & NodeFlags.JavaScriptFile) === 0 ? tryParseTypeArguments() : undefined;
+            const typeArguments = tryParseTypeArguments();
             const attributes = parseJsxAttributes();
 
             let node: JsxOpeningLikeElement;
@@ -5603,9 +5799,17 @@ namespace ts {
 
         function parseTypeAssertion(): TypeAssertion {
             const pos = getNodePos();
-            parseExpected(SyntaxKind.LessThanToken);
-            const type = parseType();
-            parseExpected(SyntaxKind.GreaterThanToken);
+            const inTypeComment = tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) &&
+                token() === SyntaxKind.LessThanToken);
+            if (inTypeComment) {
+                console.log('in type assertion ' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos() + 10));
+            }
+            const type = setInTypeCommentContextAnd(inTypeComment, () => {
+                parseExpected(SyntaxKind.LessThanToken);
+                const type = parseType();
+                parseExpected(SyntaxKind.GreaterThanToken);
+                return type;
+            });
             const expression = parseSimpleUnaryExpression();
             return finishNode(factory.createTypeAssertion(type, expression), pos);
         }
@@ -5719,6 +5923,10 @@ namespace ts {
                         expression = finishNode(factory.createNonNullExpression(expression), pos);
                         continue;
                     }
+                    if (tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && parseOptional(SyntaxKind.ExclamationToken))) {
+                        expression = setInTypeCommentContextAnd(true, () => finishNode(factory.createNonNullExpression(expression), pos));
+                        continue;
+                    }
                     const typeArguments = tryParse(parseTypeArgumentsInExpression);
                     if (typeArguments) {
                         expression = finishNode(factory.createExpressionWithTypeArguments(expression, typeArguments), pos);
@@ -5792,28 +6000,34 @@ namespace ts {
         }
 
         function parseTypeArgumentsInExpression() {
-            if ((contextFlags & NodeFlags.JavaScriptFile) !== 0) {
+            if ((contextFlags & NodeFlags.JavaScriptFile) !== 0 && token() !== SyntaxKind.SlashAsteriskColonColonToken) {
                 // TypeArguments must not be parsed in JavaScript files to avoid ambiguity with binary operators.
+                // However, they are acceptable if wrapped in `/*::`
                 return undefined;
             }
 
+            const inTypeComment = parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
             if (reScanLessThanToken() !== SyntaxKind.LessThanToken) {
                 return undefined;
             }
             nextToken();
 
-            const typeArguments = parseDelimitedList(ParsingContext.TypeArguments, parseType);
-            if (reScanGreaterToken() !== SyntaxKind.GreaterThanToken) {
-                // If it doesn't have the closing `>` then it's definitely not an type argument list.
-                return undefined;
-            }
-            nextToken();
+            const typeArguments = setInTypeCommentContextAnd(inTypeComment, () => {
+                const result = parseDelimitedList(ParsingContext.TypeArguments, parseType);
+                if (reScanGreaterToken() !== SyntaxKind.GreaterThanToken && !inTypeComment) {
+                    // If it doesn't have the closing `>` and was not in a type-as-comment
+                    // then it's definitely not a type argument list.
+                    return undefined;
+                }
+                nextToken();
+                return result;
+            });
 
             // We successfully parsed a type argument list. The next token determines whether we want to
             // treat it as such. If the type argument list is followed by `(` or a template literal, as in
             // `f<number>(42)`, we favor the type argument interpretation even though JavaScript would view
             // it as a relational expression.
-            return typeArguments && canFollowTypeArgumentsInExpression() ? typeArguments : undefined;
+            return typeArguments && (inTypeComment || canFollowTypeArgumentsInExpression()) ? typeArguments : undefined;
         }
 
         function canFollowTypeArgumentsInExpression(): boolean {
@@ -6390,6 +6604,8 @@ namespace ts {
         }
 
         function isDeclaration(): boolean {
+            const wasInTypeComment = !!(contextFlags & NodeFlags.InTypeComment);
+            let inTypeComment = false;
             while (true) {
                 switch (token()) {
                     case SyntaxKind.VarKeyword:
@@ -6398,7 +6614,9 @@ namespace ts {
                     case SyntaxKind.FunctionKeyword:
                     case SyntaxKind.ClassKeyword:
                     case SyntaxKind.EnumKeyword:
-                        return true;
+                        // Return false if the entire declaration is in a type comment.
+                        // This is only true if it was in a type comment, and still is in a type comment
+                        return !wasInTypeComment || !inTypeComment;
 
                     // 'declare', 'module', 'namespace', 'interface'* and 'type' are all legal JavaScript identifiers;
                     // however, an identifier cannot be followed by another identifier on the same line. This is what we
@@ -6461,6 +6679,14 @@ namespace ts {
                         }
                         continue;
 
+                    case SyntaxKind.AsteriskSlashToken:
+                        inTypeComment = false;
+                        nextToken();
+                        continue;
+                    case SyntaxKind.SlashAsteriskColonColonToken:
+                        inTypeComment = true;
+                        nextToken();
+                        continue;
                     case SyntaxKind.StaticKeyword:
                         nextToken();
                         continue;
@@ -6496,6 +6722,7 @@ namespace ts {
                 case SyntaxKind.ThrowKeyword:
                 case SyntaxKind.TryKeyword:
                 case SyntaxKind.DebuggerKeyword:
+                case SyntaxKind.SlashAsteriskColonColonToken:
                 // 'catch' and 'finally' do not actually indicate that the code is part of a statement,
                 // however, we say they are here so that we may gracefully parse them and error later.
                 // falls through
@@ -6546,52 +6773,8 @@ namespace ts {
         }
 
         function parseStatement(): Statement {
+            let result: Statement;
             switch (token()) {
-                case SyntaxKind.SemicolonToken:
-                    return parseEmptyStatement();
-                case SyntaxKind.OpenBraceToken:
-                    return parseBlock(/*ignoreMissingOpenBrace*/ false);
-                case SyntaxKind.VarKeyword:
-                    return parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
-                case SyntaxKind.LetKeyword:
-                    if (isLetDeclaration()) {
-                        return parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
-                    }
-                    break;
-                case SyntaxKind.FunctionKeyword:
-                    return parseFunctionDeclaration(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
-                case SyntaxKind.ClassKeyword:
-                    return parseClassDeclaration(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
-                case SyntaxKind.IfKeyword:
-                    return parseIfStatement();
-                case SyntaxKind.DoKeyword:
-                    return parseDoStatement();
-                case SyntaxKind.WhileKeyword:
-                    return parseWhileStatement();
-                case SyntaxKind.ForKeyword:
-                    return parseForOrForInOrForOfStatement();
-                case SyntaxKind.ContinueKeyword:
-                    return parseBreakOrContinueStatement(SyntaxKind.ContinueStatement);
-                case SyntaxKind.BreakKeyword:
-                    return parseBreakOrContinueStatement(SyntaxKind.BreakStatement);
-                case SyntaxKind.ReturnKeyword:
-                    return parseReturnStatement();
-                case SyntaxKind.WithKeyword:
-                    return parseWithStatement();
-                case SyntaxKind.SwitchKeyword:
-                    return parseSwitchStatement();
-                case SyntaxKind.ThrowKeyword:
-                    return parseThrowStatement();
-                case SyntaxKind.TryKeyword:
-                // Include 'catch' and 'finally' for error recovery.
-                // falls through
-                case SyntaxKind.CatchKeyword:
-                case SyntaxKind.FinallyKeyword:
-                    return parseTryStatement();
-                case SyntaxKind.DebuggerKeyword:
-                    return parseDebuggerStatement();
-                case SyntaxKind.AtToken:
-                    return parseDeclaration();
                 case SyntaxKind.AsyncKeyword:
                 case SyntaxKind.InterfaceKeyword:
                 case SyntaxKind.TypeKeyword:
@@ -6609,12 +6792,121 @@ namespace ts {
                 case SyntaxKind.StaticKeyword:
                 case SyntaxKind.ReadonlyKeyword:
                 case SyntaxKind.GlobalKeyword:
+                case SyntaxKind.SlashAsteriskColonColonToken:
                     if (isStartOfDeclaration()) {
-                        return parseDeclaration();
+                        result = parseDeclaration();
+                        break;
                     }
-                    break;
+                // falls through
+                default:
+                    if (parseOptional(SyntaxKind.SlashAsteriskColonColonToken)) {
+                        console.log('in type comment should be 0 ' + ((contextFlags & NodeFlags.InTypeComment) === 0));
+                        setInTypeCommentContext(true);
+                    }
+                    switch (token()) {
+                        case SyntaxKind.AsyncKeyword:
+                        case SyntaxKind.InterfaceKeyword:
+                        case SyntaxKind.TypeKeyword:
+                        case SyntaxKind.ModuleKeyword:
+                        case SyntaxKind.NamespaceKeyword:
+                        case SyntaxKind.DeclareKeyword:
+                        case SyntaxKind.ConstKeyword:
+                        case SyntaxKind.EnumKeyword:
+                        case SyntaxKind.ExportKeyword:
+                        case SyntaxKind.ImportKeyword:
+                        case SyntaxKind.PrivateKeyword:
+                        case SyntaxKind.ProtectedKeyword:
+                        case SyntaxKind.PublicKeyword:
+                        case SyntaxKind.AbstractKeyword:
+                        case SyntaxKind.StaticKeyword:
+                        case SyntaxKind.ReadonlyKeyword:
+                        case SyntaxKind.GlobalKeyword:
+                            if (isStartOfDeclaration()) {
+                                result = parseDeclaration();
+                            }
+                            else {
+                                result = parseExpressionOrLabeledStatement();
+                            }
+                            break;
+                        case SyntaxKind.SemicolonToken:
+                            result = parseEmptyStatement();
+                            break;
+                        case SyntaxKind.OpenBraceToken:
+                            result = parseBlock(/*ignoreMissingOpenBrace*/ false);
+                            break;
+                        case SyntaxKind.VarKeyword:
+                            result = parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
+                            break;
+                        case SyntaxKind.LetKeyword:
+                            if (isLetDeclaration()) {
+                                result = parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
+                            }
+                            else {
+                                result = parseExpressionOrLabeledStatement();
+                            }
+                            break;
+                        case SyntaxKind.FunctionKeyword:
+                            result = parseFunctionDeclaration(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
+                            break;
+                        case SyntaxKind.ClassKeyword:
+                            result = parseClassDeclaration(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
+                            break;
+                        case SyntaxKind.IfKeyword:
+                            result = parseIfStatement();
+                            break;
+                        case SyntaxKind.DoKeyword:
+                            result = parseDoStatement();
+                            break;
+                        case SyntaxKind.WhileKeyword:
+                            result = parseWhileStatement();
+                            break;
+                        case SyntaxKind.ForKeyword:
+                            result = parseForOrForInOrForOfStatement();
+                            break;
+                        case SyntaxKind.ContinueKeyword:
+                            result = parseBreakOrContinueStatement(SyntaxKind.ContinueStatement);
+                            break;
+                        case SyntaxKind.BreakKeyword:
+                            result = parseBreakOrContinueStatement(SyntaxKind.BreakStatement);
+                            break;
+                        case SyntaxKind.ReturnKeyword:
+                            result = parseReturnStatement();
+                            break;
+                        case SyntaxKind.WithKeyword:
+                            result = parseWithStatement();
+                            break;
+                        case SyntaxKind.SwitchKeyword:
+                            result = parseSwitchStatement();
+                            break;
+                        case SyntaxKind.ThrowKeyword:
+                            result = parseThrowStatement();
+                            break;
+                        case SyntaxKind.TryKeyword:
+                        // Include 'catch' and 'finally' for error recovery.
+                        // falls through
+                        case SyntaxKind.CatchKeyword:
+                        case SyntaxKind.FinallyKeyword:
+                            result = parseTryStatement();
+                            break;
+                        case SyntaxKind.DebuggerKeyword:
+                            result = parseDebuggerStatement();
+                            break;
+                        case SyntaxKind.AtToken:
+                            result = parseDeclaration();
+                            break;
+                        default:
+                            result = parseExpressionOrLabeledStatement();
+                    }
             }
-            return parseExpressionOrLabeledStatement();
+            if (token() === SyntaxKind.AsteriskSlashToken) {
+                if (!(contextFlags & NodeFlags.InTypeComment)) {
+                    console.log('statement "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                    parseErrorAtCurrentToken(Diagnostics.Unexpected_token);
+                }
+                setInTypeCommentContext(false);
+                nextToken();
+            }
+            return result;
         }
 
         function isDeclareModifier(modifier: Modifier) {
@@ -6628,7 +6920,13 @@ namespace ts {
             const pos = getNodePos();
             const hasJSDoc = hasPrecedingJSDocComment();
             const decorators = parseDecorators();
-            const modifiers = parseModifiers();
+            let modifiers = parseModifiers();
+            if (!modifiers && parseOptional(SyntaxKind.SlashAsteriskColonColonToken)) {
+                console.log('in type comment should be 0 ' + ((contextFlags & NodeFlags.InTypeComment) === 0));
+                setInTypeCommentContext(true);
+                // TODO(somebody1234) why is this parseModifiers(true, true)
+                modifiers = parseModifiers(/*permitInvalidConstAsModifier*/ true, /*stopOnStartOfClassStaticBlock*/ true);
+            }
             const isAmbient = some(modifiers, isDeclareModifier);
             if (isAmbient) {
                 const node = tryReuseAmbientDeclaration(pos);
@@ -6638,6 +6936,9 @@ namespace ts {
 
                 for (const m of modifiers!) {
                     (m as Mutable<Node>).flags |= NodeFlags.Ambient;
+                }
+                if (contextFlags & NodeFlags.InTypeComment) {
+                    console.log('is ambient "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
                 }
                 return doInsideOfContext(NodeFlags.Ambient, () => parseDeclarationWorker(pos, hasJSDoc, decorators, modifiers));
             }
@@ -6793,12 +7094,25 @@ namespace ts {
             const pos = getNodePos();
             const hasJSDoc = hasPrecedingJSDocComment();
             const name = parseIdentifierOrPattern(Diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations);
-            let exclamationToken: ExclamationToken | undefined;
-            if (allowExclamation && name.kind === SyntaxKind.Identifier &&
-                token() === SyntaxKind.ExclamationToken && !scanner.hasPrecedingLineBreak()) {
-                exclamationToken = parseTokenNode<Token<SyntaxKind.ExclamationToken>>();
-            }
-            const type = parseTypeAnnotation();
+
+            // We are in a type comment only if the exclamationToken will successfully parse
+            const inTypeComment = !!allowExclamation &&
+                name.kind === SyntaxKind.Identifier &&
+                tryParse(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) &&
+                    token() === SyntaxKind.ExclamationToken &&
+                    !scanner.hasPrecedingLineBreak());
+
+            const [exclamationToken, type] = setInTypeCommentContextAnd(inTypeComment, () => {
+                let exclamationToken: ExclamationToken | undefined;
+                if (inTypeComment ||
+                    allowExclamation && name.kind === SyntaxKind.Identifier &&
+                    token() === SyntaxKind.ExclamationToken && !scanner.hasPrecedingLineBreak()
+                ) {
+                    exclamationToken = parseTokenNode<Token<SyntaxKind.ExclamationToken>>();
+                }
+                return [exclamationToken, parseTypeAnnotation()];
+            });
+
             const initializer = isInOrOfKeyword(token()) ? undefined : parseInitializer();
             const node = factory.createVariableDeclaration(name, exclamationToken, type, initializer);
             return withJSDoc(finishNode(node, pos), hasJSDoc);
@@ -6946,6 +7260,45 @@ namespace ts {
             return withJSDoc(finishNode(node, pos), hasJSDoc);
         }
 
+        /**
+         * A method declaration in which the `/*::` has already been consumed.
+         * Used for methods like `foo/*:: ?<T> * /{}`.
+         */
+        function parseMethodDeclarationInTypeComment(
+            pos: number,
+            hasJSDoc: boolean,
+            decorators: NodeArray<Decorator> | undefined,
+            modifiers: NodeArray<Modifier> | undefined,
+            asteriskToken: AsteriskToken | undefined,
+            name: PropertyName,
+            questionToken: QuestionToken | undefined,
+            exclamationToken: ExclamationToken | undefined,
+            diagnosticMessage?: DiagnosticMessage
+        ): MethodDeclaration {
+            const isGenerator = asteriskToken ? SignatureFlags.Yield : SignatureFlags.None;
+            const isAsync = some(modifiers, isAsyncModifier) ? SignatureFlags.Await : SignatureFlags.None;
+            const typeParameters = parseTypeParameters();
+            Debug.assert(typeParameters);
+            parseExpected(SyntaxKind.AsteriskSlashToken);
+            setInTypeCommentContext(false);
+            const parameters = parseParameters(isGenerator | isAsync);
+            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const body = parseFunctionBlockOrSemicolon(isGenerator | isAsync, diagnosticMessage);
+            const node = factory.createMethodDeclaration(
+                combineDecoratorsAndModifiers(decorators, modifiers),
+                asteriskToken,
+                name,
+                questionToken,
+                typeParameters,
+                parameters,
+                type,
+                body
+            );
+            // An exclamation token on a method is invalid syntax and will be handled by the grammar checker
+            (node as Mutable<MethodDeclaration>).exclamationToken = exclamationToken;
+            return withJSDoc(finishNode(node, pos), hasJSDoc);
+        }
+
         function parsePropertyDeclaration(
             pos: number,
             hasJSDoc: boolean,
@@ -6954,8 +7307,24 @@ namespace ts {
             name: PropertyName,
             questionToken: QuestionToken | undefined
         ): PropertyDeclaration {
+            // TODO: check all == ColonColon + lookahead combos
+            const inTypeComment = token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() =>
+                !!nextToken() &&
+                (token() === SyntaxKind.QuestionToken || token() === SyntaxKind.ExclamationToken)
+            );
+            if (inTypeComment) {
+                setInTypeCommentContext(true);
+                nextToken();
+                if (!questionToken) {
+                    questionToken = parseOptionalToken(SyntaxKind.QuestionToken);
+                }
+            }
             const exclamationToken = !questionToken && !scanner.hasPrecedingLineBreak() ? parseOptionalToken(SyntaxKind.ExclamationToken) : undefined;
             const type = parseTypeAnnotation();
+            if (inTypeComment) {
+                parseExpected(SyntaxKind.AsteriskSlashToken);
+                setInTypeCommentContext(false);
+            }
             const initializer = doOutsideOfContext(NodeFlags.YieldContext | NodeFlags.AwaitContext | NodeFlags.DisallowInContext, parseInitializer);
             parseSemicolonAfterPropertyName(name, type, initializer);
             const node = factory.createPropertyDeclaration(
@@ -6975,10 +7344,29 @@ namespace ts {
         ): PropertyDeclaration | MethodDeclaration {
             const asteriskToken = parseOptionalToken(SyntaxKind.AsteriskToken);
             const name = parsePropertyName();
+            const questionInTypeComment = lookAhead(() =>
+                parseOptional(SyntaxKind.SlashAsteriskColonColonToken) &&
+                parseOptional(SyntaxKind.QuestionToken) &&
+                // It is not legal to omit `*/`, but we allow it as the setInTypeCommentContextAnd below will catch it anyway.
+                (parseOptional(SyntaxKind.AsteriskSlashToken) || true) &&
+                (!!asteriskToken || token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken)
+            );
+            if (questionInTypeComment) {
+                nextToken();
+                setInTypeCommentContext(true);
+            }
             // Note: this is not legal as per the grammar.  But we allow it in the parser and
             // report an error in the grammar checker.
             const questionToken = parseOptionalToken(SyntaxKind.QuestionToken);
-            if (asteriskToken || token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken) {
+            if (questionInTypeComment) {
+                if (!parseOptional(SyntaxKind.AsteriskSlashToken)) {
+                    return parseMethodDeclarationInTypeComment(pos, hasJSDoc, decorators, modifiers, asteriskToken, name, questionToken, /*exclamationToken*/ undefined, Diagnostics.or_expected);
+                }
+                setInTypeCommentContext(false);
+            }
+            if (asteriskToken || token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken ||
+                token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => !!nextToken() && (token() === SyntaxKind.OpenParenToken || token() === SyntaxKind.LessThanToken))
+            ) {
                 return parseMethodDeclaration(pos, hasJSDoc, decorators, modifiers, asteriskToken, name, questionToken, /*exclamationToken*/ undefined, Diagnostics.or_expected);
             }
             return parsePropertyDeclaration(pos, hasJSDoc, decorators, modifiers, name, questionToken);
@@ -7006,6 +7394,8 @@ namespace ts {
                 return true;
             }
 
+            parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
+
             // Eat up all modifiers, but hold on to the last one in case it is actually an identifier.
             while (isModifierKind(token())) {
                 idToken = token();
@@ -7020,6 +7410,8 @@ namespace ts {
                 }
 
                 nextToken();
+                parseOptional(SyntaxKind.AsteriskSlashToken);
+                parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
             }
 
             if (token() === SyntaxKind.AsteriskToken) {
@@ -7052,9 +7444,13 @@ namespace ts {
                     case SyntaxKind.LessThanToken:      // Generic Method declaration
                     case SyntaxKind.ExclamationToken:   // Non-null assertion on property name
                     case SyntaxKind.ColonToken:         // Type Annotation for declaration
+                    case SyntaxKind.SlashAsteriskColonToken: // Comment Type Annotation for declaration
                     case SyntaxKind.EqualsToken:        // Initializer for declaration
                     case SyntaxKind.QuestionToken:      // Not valid, but permitted so that it gets caught later on.
                         return true;
+                    case SyntaxKind.SlashAsteriskColonColonToken:
+                        // Comment Type Annotation for declaration
+                        return nextToken() === SyntaxKind.ColonToken;
                     default:
                         // Covers
                         //  - Semicolons     (declaration termination)
@@ -7165,13 +7561,44 @@ namespace ts {
          * In such situations, 'permitInvalidConstAsModifier' should be set to true.
          */
         function parseModifiers(permitInvalidConstAsModifier?: boolean, stopOnStartOfClassStaticBlock?: boolean): NodeArray<Modifier> | undefined {
-            const pos = getNodePos();
-            let list, modifier, hasSeenStatic = false;
-            while (modifier = tryParseModifier(permitInvalidConstAsModifier, stopOnStartOfClassStaticBlock, hasSeenStatic)) {
-                if (modifier.kind === SyntaxKind.StaticKeyword) hasSeenStatic = true;
-                list = append(list, modifier);
-            }
-            return list && createNodeArray(list, pos);
+            return tryParse(() => {
+                const pos = getNodePos();
+                let list: Modifier[] | undefined, modifier, hasSeenStatic = false;
+                let inTypeComment = parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
+                if (inTypeComment) {
+                    setInTypeCommentContext(true);
+                }
+                while (modifier = tryParseModifier(permitInvalidConstAsModifier, stopOnStartOfClassStaticBlock, hasSeenStatic)) {
+                    if (modifier.kind === SyntaxKind.StaticKeyword) hasSeenStatic = true;
+                    list = append(list, modifier);
+                    if (token() === SyntaxKind.AsteriskSlashToken) {
+                        if (inTypeComment) {
+                            inTypeComment = false;
+                            setInTypeCommentContext(false);
+                        }
+                        else {
+                            console.log('parseModifiers "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                            parseErrorAtCurrentToken(Diagnostics.Unexpected_token);
+                        }
+                        nextToken();
+                    }
+                    if (!inTypeComment) {
+                        inTypeComment = parseOptional(SyntaxKind.SlashAsteriskColonColonToken);
+                        if (inTypeComment) {
+                            setInTypeCommentContext(true);
+                        }
+                    }
+                }
+                if (inTypeComment) {
+                    // If still inTypeComment, assume the entire statement is in a type comment.
+                    setInTypeCommentContext(false);
+                    return;
+                }
+                if (!list) {
+                    return;
+                }
+                return createNodeArray(list, pos);
+            });
         }
 
         function parseModifiersForArrowFunction(): NodeArray<Modifier> | undefined {
@@ -7194,33 +7621,35 @@ namespace ts {
 
             const hasJSDoc = hasPrecedingJSDocComment();
             const decorators = parseDecorators();
-            const modifiers = parseModifiers(/*permitInvalidConstAsModifier*/ true, /*stopOnStartOfClassStaticBlock*/ true);
+            let modifiers = parseModifiers(/*permitInvalidConstAsModifier*/ true, /*stopOnStartOfClassStaticBlock*/ true);
+            if (!modifiers && parseOptional(SyntaxKind.SlashAsteriskColonColonToken)) {
+                console.log('in type comment should be 0 ' + ((contextFlags & NodeFlags.InTypeComment) === 0));
+                setInTypeCommentContext(true);
+                modifiers = parseModifiers(/*permitInvalidConstAsModifier*/ true, /*stopOnStartOfClassStaticBlock*/ true);
+            }
+            let result: ClassElement;
+            let constructorDeclaration: ConstructorDeclaration | undefined;
             if (token() === SyntaxKind.StaticKeyword && lookAhead(nextTokenIsOpenBrace)) {
-                return parseClassStaticBlockDeclaration(pos, hasJSDoc, decorators, modifiers);
+                result = parseClassStaticBlockDeclaration(pos, hasJSDoc, decorators, modifiers);
             }
-
-            if (parseContextualModifier(SyntaxKind.GetKeyword)) {
-                return parseAccessorDeclaration(pos, hasJSDoc, decorators, modifiers, SyntaxKind.GetAccessor, SignatureFlags.None);
+            else if (parseContextualModifier(SyntaxKind.GetKeyword)) {
+                result = parseAccessorDeclaration(pos, hasJSDoc, decorators, modifiers, SyntaxKind.GetAccessor, SignatureFlags.None);
             }
-
-            if (parseContextualModifier(SyntaxKind.SetKeyword)) {
-                return parseAccessorDeclaration(pos, hasJSDoc, decorators, modifiers, SyntaxKind.SetAccessor, SignatureFlags.None);
+            else if (parseContextualModifier(SyntaxKind.SetKeyword)) {
+                result = parseAccessorDeclaration(pos, hasJSDoc, decorators, modifiers, SyntaxKind.SetAccessor, SignatureFlags.None);
             }
-
-            if (token() === SyntaxKind.ConstructorKeyword || token() === SyntaxKind.StringLiteral) {
-                const constructorDeclaration = tryParseConstructorDeclaration(pos, hasJSDoc, decorators, modifiers);
-                if (constructorDeclaration) {
-                    return constructorDeclaration;
-                }
+            else if (
+                (token() === SyntaxKind.ConstructorKeyword || token() === SyntaxKind.StringLiteral) &&
+                (constructorDeclaration = tryParseConstructorDeclaration(pos, hasJSDoc, decorators, modifiers))
+            ) {
+                result = constructorDeclaration;
             }
-
-            if (isIndexSignature()) {
-                return parseIndexSignatureDeclaration(pos, hasJSDoc, decorators, modifiers);
+            else if (isIndexSignature()) {
+                result = parseIndexSignatureDeclaration(pos, hasJSDoc, decorators, modifiers);
             }
-
             // It is very important that we check this *after* checking indexers because
             // the [ token can start an index signature or a computed property name
-            if (tokenIsIdentifierOrKeyword(token()) ||
+            else if (tokenIsIdentifierOrKeyword(token()) ||
                 token() === SyntaxKind.StringLiteral ||
                 token() === SyntaxKind.NumericLiteral ||
                 token() === SyntaxKind.AsteriskToken ||
@@ -7230,21 +7659,31 @@ namespace ts {
                     for (const m of modifiers!) {
                         (m as Mutable<Node>).flags |= NodeFlags.Ambient;
                     }
-                    return doInsideOfContext(NodeFlags.Ambient, () => parsePropertyOrMethodDeclaration(pos, hasJSDoc, decorators, modifiers));
+                    result = doInsideOfContext(NodeFlags.Ambient, () => parsePropertyOrMethodDeclaration(pos, hasJSDoc, decorators, modifiers));
                 }
                 else {
-                    return parsePropertyOrMethodDeclaration(pos, hasJSDoc, decorators, modifiers);
+                    result = parsePropertyOrMethodDeclaration(pos, hasJSDoc, decorators, modifiers);
                 }
             }
-
-            if (decorators || modifiers) {
+            else if (decorators || modifiers) {
                 // treat this as a property declaration with a missing name.
                 const name = createMissingNode<Identifier>(SyntaxKind.Identifier, /*reportAtCurrentPosition*/ true, Diagnostics.Declaration_expected);
-                return parsePropertyDeclaration(pos, hasJSDoc, decorators, modifiers, name, /*questionToken*/ undefined);
+                result = parsePropertyDeclaration(pos, hasJSDoc, decorators, modifiers, name, /*questionToken*/ undefined);
+            }
+            // 'isClassMemberStart' should have hinted not to attempt parsing.
+            else {
+                return Debug.fail("Should not have attempted to parse class member declaration.");
             }
 
-            // 'isClassMemberStart' should have hinted not to attempt parsing.
-            return Debug.fail("Should not have attempted to parse class member declaration.");
+            if (token() === SyntaxKind.AsteriskSlashToken) {
+                if (!(contextFlags & NodeFlags.InTypeComment)) {
+                    console.log('parseClassElement "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                    parseErrorAtCurrentToken(Diagnostics.Unexpected_token);
+                }
+                setInTypeCommentContext(false);
+                nextToken();
+            }
+            return result;
         }
 
         function parseClassExpression(): ClassExpression {
@@ -7310,11 +7749,17 @@ namespace ts {
 
         function parseHeritageClause(): HeritageClause {
             const pos = getNodePos();
-            const tok = token();
-            Debug.assert(tok === SyntaxKind.ExtendsKeyword || tok === SyntaxKind.ImplementsKeyword); // isListElement() should ensure this.
-            nextToken();
-            const types = parseDelimitedList(ParsingContext.HeritageClauseElement, parseExpressionWithTypeArguments);
-            return finishNode(factory.createHeritageClause(tok, types), pos);
+            const inTypeComment = token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => nextToken() === SyntaxKind.ImplementsKeyword);
+            if (inTypeComment) {
+                nextToken();
+            }
+            return setInTypeCommentContextAnd(inTypeComment, () => {
+                const tok = token();
+                Debug.assert(tok === SyntaxKind.ExtendsKeyword || tok === SyntaxKind.ImplementsKeyword); // isListElement() should ensure this.
+                nextToken();
+                const types = parseDelimitedList(ParsingContext.HeritageClauseElement, parseExpressionWithTypeArguments);
+                return finishNode(factory.createHeritageClause(tok, types), pos);
+            });
         }
 
         function parseExpressionWithTypeArguments(): ExpressionWithTypeArguments {
@@ -7328,16 +7773,40 @@ namespace ts {
         }
 
         function tryParseTypeArguments(): NodeArray<TypeNode> | undefined {
-            return token() === SyntaxKind.LessThanToken ?
-                parseBracketedList(ParsingContext.TypeArguments, parseType, SyntaxKind.LessThanToken, SyntaxKind.GreaterThanToken) : undefined;
+            const inTypeComment = lookAhead(() => parseOptional(SyntaxKind.SlashAsteriskColonColonToken) && token() === SyntaxKind.LessThanToken);
+            if (!inTypeComment && (contextFlags & NodeFlags.JavaScriptFile) && !(contextFlags & NodeFlags.InTypeComment)) {
+                // This is a JSX tag
+                return;
+            }
+            if (token() === SyntaxKind.LessThanToken) {
+                return setInTypeCommentContextAnd(
+                    inTypeComment,
+                    () => parseBracketedList(ParsingContext.TypeArguments, parseType, SyntaxKind.LessThanToken, SyntaxKind.GreaterThanToken)
+                );
+            }
         }
 
         function isHeritageClause(): boolean {
-            return token() === SyntaxKind.ExtendsKeyword || token() === SyntaxKind.ImplementsKeyword;
+            return token() === SyntaxKind.ExtendsKeyword ||
+                token() === SyntaxKind.ImplementsKeyword ||
+                token() === SyntaxKind.SlashAsteriskColonColonToken && lookAhead(() => nextToken() === SyntaxKind.ImplementsKeyword);
         }
 
         function parseClassMembers(): NodeArray<ClassElement> {
-            return parseList(ParsingContext.ClassMembers, parseClassElement);
+            const result = parseList(ParsingContext.ClassMembers, parseClassElement);
+            const asteriskSlash = parseOptionalToken(SyntaxKind.AsteriskSlashToken);
+            if (contextFlags & NodeFlags.InTypeComment) {
+                if (!asteriskSlash) {
+                    parseErrorAtPosition(getNodePos(), 0, Diagnostics._0_expected, tokenToString(SyntaxKind.AsteriskSlashToken));
+                }
+            }
+            else {
+                if (asteriskSlash && !(contextFlags & NodeFlags.InTypeComment)) {
+                    console.log('parseClassMembers "' + sourceText.slice(scanner.getStartPos() - 10, scanner.getStartPos()) + '" "' + sourceText.slice(scanner.getStartPos(), scanner.getStartPos() + 10) + '"');
+                    parseErrorAt(asteriskSlash.pos, asteriskSlash.end, Diagnostics.Unexpected_token);
+                }
+            }
+            return result;
         }
 
         function parseInterfaceDeclaration(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): InterfaceDeclaration {
@@ -7662,8 +8131,8 @@ namespace ts {
             //  ImportSpecifier
             //  ImportsList, ImportSpecifier
             const node = kind === SyntaxKind.NamedImports
-                ? factory.createNamedImports(parseBracketedList(ParsingContext.ImportOrExportSpecifiers, parseImportSpecifier, SyntaxKind.OpenBraceToken, SyntaxKind.CloseBraceToken))
-                : factory.createNamedExports(parseBracketedList(ParsingContext.ImportOrExportSpecifiers, parseExportSpecifier, SyntaxKind.OpenBraceToken, SyntaxKind.CloseBraceToken));
+                ? factory.createNamedImports(parseBracketedList(ParsingContext.ImportOrExportSpecifiers, parseImportSpecifier, SyntaxKind.OpenBraceToken, SyntaxKind.CloseBraceToken, /*allowTypesAsComments*/ true))
+                : factory.createNamedExports(parseBracketedList(ParsingContext.ImportOrExportSpecifiers, parseExportSpecifier, SyntaxKind.OpenBraceToken, SyntaxKind.CloseBraceToken, /*allowTypesAsComments*/ true));
             return finishNode(node, pos);
         }
 
@@ -7841,7 +8310,7 @@ namespace ts {
             TupleElementTypes,         // Element types in tuple element type list
             HeritageClauses,           // Heritage clauses for a class or interface declaration.
             ImportOrExportSpecifiers,  // Named import clause's import specifier list,
-            AssertEntries,               // Import entries list.
+            AssertEntries,             // Import entries list.
             Count                      // Number of parsing contexts
         }
 
